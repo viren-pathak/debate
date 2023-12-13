@@ -125,7 +125,7 @@ class UserController extends Controller
 
 
 
-    /*** Function to change the password when USER is logged in  */
+    /*** Function to change the password when USER is logged in  ***/
 
     public function change_password(Request $request){
 
