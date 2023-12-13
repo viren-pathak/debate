@@ -5,7 +5,11 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\User; // Import User model
 use Illuminate\Support\Facades\Hash; // Import Facades to make password hashed
-
+use Illuminate\Auth\Events\Registered;
+use App\Notifications\VerifyEmailNotification; 
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Mail\Message;
+use Illuminate\Support\Str;
 
 class UserController extends Controller
 {
@@ -35,9 +39,15 @@ class UserController extends Controller
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'tc' => json_decode($request->tc),
+            'verification_token' => \Str::random(40),
             'username' => $request->username
         ]);
         
+
+        // Send verification email
+        $user->notify(new VerifyEmailNotification($user->verification_token));
+
+
 
         // Create token for user
         $token = $user->createToken($request->email)->plainTextToken;
@@ -65,7 +75,7 @@ class UserController extends Controller
         $user = User::where('email', $request->email)->orWhere('username', $request->username)->first();
 
         //validate user password
-        if ($user && Hash::check($request->password, $user->password)) {
+        if ($user && $user->hasVerifiedEmail() && Hash::check($request->password, $user->password)) {
 
             // Create token for user in login
             $token = $user->createToken($request->email ?? $request->username)->plainTextToken;
