@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\debate;
+use App\Models\Debate;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Validator;
@@ -35,49 +35,49 @@ class DebateController extends Controller
     /** CLASS TO CREATE DEBATE ***/
 
     public function storetodb(Request $request)
-{
-    $validator = Validator::make($request->all(), [
-        'title' => 'required|string|max:191',
-        'thesis' => 'required|string|max:191',
-        'tags' => 'required|string|max:191',
-        'backgroundinfo' => 'required|string|max:191',
-        'file' => 'nullable|file|mimes:jpeg,png,jpg,gif|max:2048', // Add this line for file validation
-    ]);
+    {
+        $validator = Validator::make($request->all(), [
+            'title' => 'required|string|max:191',
+            'thesis' => 'required|string|max:191',
+            'tags' => 'required|string|max:191',
+            'backgroundinfo' => 'required|string|max:191',
+            'file' => 'nullable|file|mimes:jpeg,png,jpg,gif|max:2048', // Add this line for file validation
+        ]);
 
-    if ($validator->fails()) {
-        return response()->json([
-            'status' => 422,
-            'errors' => $validator->messages()
-        ], 422);
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 422,
+                'errors' => $validator->messages()
+            ], 422);
+        }
+
+        $filePath = null;
+        if ($request->hasFile('file')) {
+            $file = $request->file('file');
+            $filePath = FileUploadService::upload($file, 'debate_images');
+        }
+
+        $storevar = debate::create([
+            'title' => $request->title,
+            'thesis' => $request->thesis,
+            'tags' => $request->tags,
+            'backgroundinfo' => $request->backgroundinfo,
+            'image' => $filePath,
+            'imgname' => $filePath ? pathinfo($filePath, PATHINFO_FILENAME) : null,
+        ]);
+
+        if ($storevar) {
+            return response()->json([
+                'status' => 200,
+                'message' => 'Debate topic created Successfully'
+            ], 200);
+        } else {
+            return response()->json([
+                'status' => 500,
+                'message' => "OOPS! Something went wrong!"
+            ], 500);
+        }
     }
-
-    $filePath = null;
-    if ($request->hasFile('file')) {
-        $file = $request->file('file');
-        $filePath = FileUploadService::upload($file, 'debate_images');
-    }
-
-    $storevar = debate::create([
-        'title' => $request->title,
-        'thesis' => $request->thesis,
-        'tags' => $request->tags,
-        'backgroundinfo' => $request->backgroundinfo,
-        'image' => $filePath,
-        'imgname' => $filePath ? pathinfo($filePath, PATHINFO_FILENAME) : null,
-    ]);
-
-    if ($storevar) {
-        return response()->json([
-            'status' => 200,
-            'message' => 'Debate topic created Successfully'
-        ], 200);
-    } else {
-        return response()->json([
-            'status' => 500,
-            'message' => "OOPS! Something went wrong!"
-        ], 500);
-    }
-}
 
 
     /** CLASS TO GET DEBATE BY ID ***/
@@ -98,6 +98,38 @@ class DebateController extends Controller
             ],404);
         }
     }
+
+
+/** CLASS TO FETCH ALL TAGS **/
+
+public function getAllTags()
+{
+    $tags = Debate::distinct('tags')->pluck('tags');
+
+    return response()->json([
+        'status' => 200,
+        'tags' => $tags,
+    ], 200);
+}
+
+/** CLASS TO FETCH DEBATES BY TAG **/
+
+public function getDebatesByTag($tag)
+{
+    $debates = Debate::where('tags', $tag)->get();
+
+    if ($debates->count() > 0) {
+        return response()->json([
+            'status' => 200,
+            'debates' => $debates,
+        ], 200);
+    } else {
+        return response()->json([
+            'status' => 404,
+            'message' => 'No Debates found for the specified tag',
+        ], 404);
+    }
+}
 
 
         /** CLASS TO EDIT DEBATE BY ID ***/
@@ -142,25 +174,25 @@ class DebateController extends Controller
         
             $storevar = debate::find($id);
             if ($storevar) {
-// Delete existing file
-FileUploadService::delete($storevar->image);
+            // Delete existing file
+            FileUploadService::delete($storevar->image);
 
-// Upload new file if provided
-$filePath = null;
-if ($request->hasFile('file')) {
-    $file = $request->file('file');
-    $filePath = FileUploadService::upload($file, 'debate_images');
-}
+            // Upload new file if provided
+            $filePath = null;
+            if ($request->hasFile('file')) {
+                $file = $request->file('file');
+                $filePath = FileUploadService::upload($file, 'debate_images');
+            }
 
-$storevar->update([
-    'title' => $request->title,
-    'thesis' => $request->thesis,
-    'tags' => $request->tags,
-    'backgroundinfo' => $request->backgroundinfo,
-    'image' => $filePath,
-    'imgname' => $filePath ? pathinfo($filePath, PATHINFO_FILENAME) : null,
-]);
-        
+            $storevar->update([
+                'title' => $request->title,
+                'thesis' => $request->thesis,
+                'tags' => $request->tags,
+                'backgroundinfo' => $request->backgroundinfo,
+                'image' => $filePath,
+                'imgname' => $filePath ? pathinfo($filePath, PATHINFO_FILENAME) : null,
+            ]);
+                    
                 return response()->json([
                     'status' => 200,
                     'message' => 'Debate topic Updated Successfully'

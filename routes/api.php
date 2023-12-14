@@ -33,6 +33,9 @@ Route::get('getdebatebyid/{id}/editdebate', [DebateController::class, 'editdebat
 Route::put('getdebatebyid/{id}/editdebate', [DebateController::class, 'updatedebate']);//update debate
 Route::delete('getdebatebyid/{id}/deletedebate', [DebateController::class, 'destroydebate']);//delete debate
 Route::put('getdebatebyid/{id}/imageupload', [DebateController::class, 'debateimageupload']);//get debate by id
+Route::get('/debates/tags', [DebateController::class, 'getAllTags']);//display all tags
+Route::get('/debates/tag/{tag}', [DebateController::class, 'getDebatesByTag']);//get debates by tag
+
 
 
 // Protetcted Routes
