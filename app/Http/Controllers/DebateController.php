@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Storage;
 use App\FileUploadService;
 
 
+
 class DebateController extends Controller
 {
     /** CLASS TO DISPLAY ALL DEBATES ***/
@@ -17,13 +18,19 @@ class DebateController extends Controller
     public function getalldebates()
     {
         $debatevar = debate::all();
+        
+        // Convert tags from JSON string to array
+        $debatevar->transform(function ($debate) {
+            $debate->tags = json_decode($debate->tags);
+            return $debate;
+        });
+    
         if($debatevar->count() > 0){
             return response()->json([
                 'status' => 200,
                 'debates' => $debatevar
             ],200);
-        }else{
-
+        } else {
             return response()->json([
                 'status' => 404,
                 'Message' => 'No Records Found'
@@ -43,29 +50,33 @@ class DebateController extends Controller
             'backgroundinfo' => 'required|string|max:191',
             'file' => 'nullable|file|mimes:jpeg,png,jpg,gif|max:2048', // Add this line for file validation
         ]);
-
+    
         if ($validator->fails()) {
             return response()->json([
                 'status' => 422,
                 'errors' => $validator->messages()
             ], 422);
         }
-
+    
         $filePath = null;
         if ($request->hasFile('file')) {
             $file = $request->file('file');
             $filePath = FileUploadService::upload($file, 'debate_images');
         }
-
+    
+        $tagsArray = explode(',', $request->tags); // Convert tags to an array
+    
         $storevar = debate::create([
             'title' => $request->title,
             'thesis' => $request->thesis,
-            'tags' => $request->tags,
+            'tags' => json_encode($tagsArray), // Convert the array to a JSON string before storing
             'backgroundinfo' => $request->backgroundinfo,
             'image' => $filePath,
             'imgname' => $filePath ? pathinfo($filePath, PATHINFO_FILENAME) : null,
+            'isDebatePublic' => $request->isDebatePublic,
+            'isType' => $request->isType
         ]);
-
+    
         if ($storevar) {
             return response()->json([
                 'status' => 200,
@@ -104,7 +115,9 @@ class DebateController extends Controller
 
 public function getAllTags()
 {
-    $tags = Debate::distinct('tags')->pluck('tags');
+    $tags = Debate::all()->pluck('tags')->flatMap(function ($tags) {
+        return json_decode($tags);
+    })->unique();
 
     return response()->json([
         'status' => 200,
@@ -116,7 +129,13 @@ public function getAllTags()
 
 public function getDebatesByTag($tag)
 {
-    $debates = Debate::where('tags', $tag)->get();
+    $debates = Debate::where(function($query) use ($tag) {
+        $tagArray = json_encode($tag);
+        $query->where('tags', 'like', '%"'. $tag .'"%'); // Look for exact match within the JSON string
+        $query->orWhere(function($query) use ($tagArray) {
+            $query->whereJsonContains('tags', $tagArray); // Look for match within the JSON array
+        });
+    })->get();
 
     if ($debates->count() > 0) {
         return response()->json([
@@ -174,25 +193,30 @@ public function getDebatesByTag($tag)
         
             $storevar = debate::find($id);
             if ($storevar) {
-            // Delete existing file
-            FileUploadService::delete($storevar->image);
-
-            // Upload new file if provided
-            $filePath = null;
-            if ($request->hasFile('file')) {
-                $file = $request->file('file');
-                $filePath = FileUploadService::upload($file, 'debate_images');
-            }
-
-            $storevar->update([
-                'title' => $request->title,
-                'thesis' => $request->thesis,
-                'tags' => $request->tags,
-                'backgroundinfo' => $request->backgroundinfo,
-                'image' => $filePath,
-                'imgname' => $filePath ? pathinfo($filePath, PATHINFO_FILENAME) : null,
-            ]);
-                    
+                // Delete existing file
+                FileUploadService::delete($storevar->image);
+        
+                // Upload new file if provided
+                $filePath = null;
+                if ($request->hasFile('file')) {
+                    $file = $request->file('file');
+                    $filePath = FileUploadService::upload($file, 'debate_images');
+                }
+        
+                // Convert tags to an array
+                $tagsArray = explode(',', $request->tags);
+        
+                $storevar->update([
+                    'title' => $request->title,
+                    'thesis' => $request->thesis,
+                    'tags' => json_encode($tagsArray),
+                    'backgroundinfo' => $request->backgroundinfo,
+                    'image' => $filePath,
+                    'imgname' => $filePath ? pathinfo($filePath, PATHINFO_FILENAME) : null,
+                    'isDebatePublic' => $request->isDebatePublic,
+                    'isType' => $request->isType
+                ]);
+        
                 return response()->json([
                     'status' => 200,
                     'message' => 'Debate topic Updated Successfully'
@@ -204,6 +228,8 @@ public function getDebatesByTag($tag)
                 ], 404);
             }
         }
+
+        
 
         /** CLASS TO DELETE DEBATE ***/
 

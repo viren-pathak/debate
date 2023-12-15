@@ -15,11 +15,13 @@ return new class extends Migration
             $table->id();
             $table->string('title');
             $table->string('thesis');
-            $table->string('tags');
+            $table->text('tags');
             $table->string('backgroundinfo');
             $table->string('image')->nullable();
             $table->string('imgname')->nullable();
             $table->timestamps();
+            $table->string('isDebatePublic')->nullable();
+            $table->string('isType')->nullable();
         });
     }
 

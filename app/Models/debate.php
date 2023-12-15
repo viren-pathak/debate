@@ -17,6 +17,8 @@ class debate extends Model
         'tags',
         'backgroundinfo',
         'image',
-        'imgname'
+        'imgname',
+        'isDebatePublic',
+        'isType'
     ];
 }
