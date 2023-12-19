@@ -17,26 +17,28 @@ class DebateController extends Controller
 
     public function getalldebates()
     {
-        $debatevar = debate::all();
-        
-        // Convert tags from JSON string to array
-        $debatevar->transform(function ($debate) {
-            $debate->tags = json_decode($debate->tags);
-            return $debate;
+        $debates = Debate::whereNull('parent_id')->get();
+
+        // Transform the debates into a simplified structure
+        $transformedDebates = $debates->map(function ($debate) {
+            return $this->transformMainDebate($debate);
         });
-    
-        if($debatevar->count() > 0){
-            return response()->json([
-                'status' => 200,
-                'debates' => $debatevar
-            ],200);
-        } else {
-            return response()->json([
-                'status' => 404,
-                'Message' => 'No Records Found'
-            ],404);
-        }     
+
+        return response()->json([
+            'status' => 200,
+            'mainDebates' => $transformedDebates,
+        ], 200);
     }
+
+    private function transformMainDebate($debate)
+    {
+        $debate->tags = json_decode($debate->tags);
+
+        return $debate;
+    }
+
+
+    
 
 
     /** CLASS TO CREATE DEBATE ***/
@@ -46,8 +48,8 @@ class DebateController extends Controller
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:191',
             'thesis' => 'required|string|max:191',
-            'tags' => 'required|string|max:191',
-            'backgroundinfo' => 'required|string|max:191',
+            'tags' => 'string|max:191',
+            'backgroundinfo' => 'string|max:191',
             'file' => 'nullable|file|mimes:jpeg,png,jpg,gif|max:2048', // Add this line for file validation
         ]);
     
@@ -97,6 +99,8 @@ class DebateController extends Controller
     {
         $findbyidvar = debate::find($id);
         if ($findbyidvar){
+            // Decode the JSON-encoded tags
+            $findbyidvar->tags = json_decode($findbyidvar->tags);
             return response()->json([
                 'status' => 200,
                 'Debate' => $findbyidvar
@@ -138,6 +142,12 @@ public function getDebatesByTag($tag)
     })->get();
 
     if ($debates->count() > 0) {
+        // Decode the JSON-encoded tags for each debate
+        $debates->transform(function ($debate) {
+            $debate->tags = json_decode($debate->tags);
+            return $debate;
+        });
+
         return response()->json([
             'status' => 200,
             'debates' => $debates,
@@ -177,10 +187,10 @@ public function getDebatesByTag($tag)
         public function updatedebate(Request $request, int $id)
         {
             $validator = Validator::make($request->all(), [
-                'title' => 'required|string|max:191',
-                'thesis' => 'required|string|max:191',
-                'tags' => 'required|string|max:191',
-                'backgroundinfo' => 'required|string|max:191',
+                'title' => 'string|max:191',
+                'thesis' => 'string|max:191',
+                'tags' => 'string|max:191',
+                'backgroundinfo' => 'string|max:191',
                 'file' => 'nullable|file|mimes:jpeg,png,jpg,gif|max:2048', // Add this line for file validation
             ]);
         
@@ -252,6 +262,110 @@ public function getDebatesByTag($tag)
                 'message' => "OOPS! Something went wrong!No such ID Found"
             ],500);
         }
+    }
+
+
+    /*** CLASS TO SELECT PROS SIDE ***/
+    public function addProsChildDebate(Request $request, int $parentId)
+    {
+        return $this->addChildDebate($request, $parentId, 'pros');
+    }
+
+    /*** CLASS TO SELECT CONS SIDE ***/
+    public function addConsChildDebate(Request $request, int $parentId)
+    {
+        return $this->addChildDebate($request, $parentId, 'cons');
+    }
+    
+    private function addChildDebate(Request $request, int $parentId, string $side)
+    {
+        // Validate input
+        $validator = Validator::make($request->all(), [
+            'title' => 'required|string|max:191',
+        ]);
+    
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 422,
+                'errors' => $validator->messages()
+            ], 422);
+        }
+    
+        // Find the parent debate
+        $parentDebate = Debate::find($parentId);
+    
+        if (!$parentDebate) {
+            return response()->json([
+                'status' => 404,
+                'message' => "Parent Debate not found!"
+            ], 404);
+        }
+    
+        // Add the child debate with the specified side
+        $childDebate = Debate::create([
+            'title' => $request->title,
+            'side' => $side,
+            'parent_id' => $parentId,
+        ]);
+    
+        return response()->json([
+            'status' => 200,
+            'message' => 'Child Debate created Successfully',
+            'childDebate' => $childDebate,
+        ], 200);
+    }
+    
+    public function getProsChildDebates($parentId)
+    {
+        return $this->getChildDebates($parentId, 'pros');
+    }
+    
+    public function getConsChildDebates($parentId)
+    {
+        return $this->getChildDebates($parentId, 'cons');
+    }
+    
+    private function getChildDebates($parentId, $side)
+    {
+        $parentDebate = Debate::find($parentId);
+    
+        if (!$parentDebate) {
+            return response()->json([
+                'status' => 404,
+                'message' => "Parent Debate not found!"
+            ], 404);
+        }
+    
+        $childDebates = $parentDebate->{$side}()->get();
+    
+        return response()->json([
+            'status' => 200,
+            'childDebates' => $childDebates,
+        ], 200);
+    }
+    
+
+
+    /*** CLASS TO DISPLAY DEBATE BY ID ***/
+    public function getDebateByIdWithHierarchy($id)
+    {
+        // Find the specified debate by ID with its pros and cons
+        $debate = Debate::with(['pros', 'cons'])->find($id);
+
+        if (!$debate) {
+            return response()->json([
+                'status' => 404,
+                'message' => 'Debate not found!'
+            ], 404);
+        }
+
+        // Transform the debate into a nested structure
+        $transformedDebate = $this->transformDebate($debate);
+
+        return response()->json([
+            'status' => 200,
+            'debate' => $transformedDebate,
+        ], 200);
     }
 
 

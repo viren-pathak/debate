@@ -32,11 +32,16 @@ Route::post('getdebatebyid/{id}', [DebateController::class, 'getbyid']);//get de
 Route::get('getdebatebyid/{id}/editdebate', [DebateController::class, 'editdebateindb']);//edit the debate
 Route::put('getdebatebyid/{id}/editdebate', [DebateController::class, 'updatedebate']);//update debate
 Route::delete('getdebatebyid/{id}/deletedebate', [DebateController::class, 'destroydebate']);//delete debate
-Route::put('getdebatebyid/{id}/imageupload', [DebateController::class, 'debateimageupload']);//get debate by id
+Route::put('getdebatebyid/{id}/imageupload', [DebateController::class, 'debateimageupload']);// upload images
 Route::get('/debates/tags', [DebateController::class, 'getAllTags']);//display all tags
 Route::get('/debates/tag/{tag}', [DebateController::class, 'getDebatesByTag']);//get debates by tag
+Route::get('getdebatebyid/{id}/displaydebate', [DebateController::class, 'getDebateByIdWithHierarchy']); // Display Debate by ID
 
 
+Route::post('/debates/{parentId}/addProsChildDebate', [DebateController::class, 'addProsChildDebate']);
+Route::post('/debates/{parentId}/addConsChildDebate', [DebateController::class, 'addConsChildDebate']);
+Route::get('/debates/{parentId}/getProsChildDebates', [DebateController::class, 'getProsChildDebates']);
+Route::get('/debates/{parentId}/getConsChildDebates', [DebateController::class, 'getConsChildDebates']);
 
 // Protetcted Routes
 Route::middleware(['auth:sanctum', 'verified'])->group(function(){

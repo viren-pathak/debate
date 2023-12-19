@@ -13,15 +13,18 @@ return new class extends Migration
     {
         Schema::create('debate', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('parent_id')->nullable()->constrained('debate', 'id')->onDelete('cascade');
+            $table->string('side')->nullable(); // Add this line to include the 'side' colum
             $table->string('title');
-            $table->string('thesis');
-            $table->text('tags');
-            $table->string('backgroundinfo');
+            $table->string('thesis')->nullable();
+            $table->text('tags')->nullable();
+            $table->string('backgroundinfo')->nullable();
             $table->string('image')->nullable();
             $table->string('imgname')->nullable();
             $table->timestamps();
             $table->string('isDebatePublic')->nullable();
             $table->string('isType')->nullable();
+            
         });
     }
 
