@@ -38,9 +38,6 @@ class DebateController extends Controller
     }
 
 
-    
-
-
     /** CLASS TO CREATE DEBATE ***/
 
     public function storetodb(Request $request)
@@ -115,54 +112,53 @@ class DebateController extends Controller
     }
 
 
-/** CLASS TO FETCH ALL TAGS **/
+    /** CLASS TO FETCH ALL TAGS **/
 
-public function getAllTags()
-{
-    $tags = Debate::all()->pluck('tags')->flatMap(function ($tags) {
-        return json_decode($tags);
-    })->unique();
-
-    return response()->json([
-        'status' => 200,
-        'tags' => $tags,
-    ], 200);
-}
-
-/** CLASS TO FETCH DEBATES BY TAG **/
-
-public function getDebatesByTag($tag)
-{
-    $debates = Debate::where(function($query) use ($tag) {
-        $tagArray = json_encode($tag);
-        $query->where('tags', 'like', '%"'. $tag .'"%'); // Look for exact match within the JSON string
-        $query->orWhere(function($query) use ($tagArray) {
-            $query->whereJsonContains('tags', $tagArray); // Look for match within the JSON array
-        });
-    })->get();
-
-    if ($debates->count() > 0) {
-        // Decode the JSON-encoded tags for each debate
-        $debates->transform(function ($debate) {
-            $debate->tags = json_decode($debate->tags);
-            return $debate;
-        });
+    public function getAllTags()
+    {
+        $tags = Debate::all()->pluck('tags')->flatMap(function ($tags) {
+            return json_decode($tags);
+        })->unique();
 
         return response()->json([
             'status' => 200,
-            'debates' => $debates,
+            'tags' => $tags,
         ], 200);
-    } else {
-        return response()->json([
-            'status' => 404,
-            'message' => 'No Debates found for the specified tag',
-        ], 404);
     }
-}
+
+    /** CLASS TO FETCH DEBATES BY TAG **/
+
+    public function getDebatesByTag($tag)
+    {
+        $debates = Debate::where(function($query) use ($tag) {
+            $tagArray = json_encode($tag);
+            $query->where('tags', 'like', '%"'. $tag .'"%'); // Look for exact match within the JSON string
+            $query->orWhere(function($query) use ($tagArray) {
+                $query->whereJsonContains('tags', $tagArray); // Look for match within the JSON array
+            });
+        })->get();
+
+        if ($debates->count() > 0) {
+            // Decode the JSON-encoded tags for each debate
+            $debates->transform(function ($debate) {
+                $debate->tags = json_decode($debate->tags);
+                return $debate;
+            });
+
+            return response()->json([
+                'status' => 200,
+                'debates' => $debates,
+            ], 200);
+        } else {
+            return response()->json([
+                'status' => 404,
+                'message' => 'No Debates found for the specified tag',
+            ], 404);
+        }
+    }
 
 
-        /** CLASS TO EDIT DEBATE BY ID ***/
-
+    /** CLASS TO EDIT DEBATE BY ID ***/
 
     public function editdebateindb($id)
     {
@@ -182,10 +178,10 @@ public function getDebatesByTag($tag)
     }
 
 
-        /** CLASS TO UPDATE DEBATE BY ID ***/
+    /** CLASS TO UPDATE DEBATE BY ID ***/
 
-        public function updatedebate(Request $request, int $id)
-        {
+    public function updatedebate(Request $request, int $id)
+    {
             $validator = Validator::make($request->all(), [
                 'title' => 'string|max:191',
                 'thesis' => 'string|max:191',
@@ -237,41 +233,61 @@ public function getDebatesByTag($tag)
                     'message' => "No Such Topic Found!"
                 ], 404);
             }
-        }
+    }
 
         
-
-        /** CLASS TO DELETE DEBATE ***/
+    /** CLASS TO DELETE DEBATE ***/
 
     public function destroydebate($id)
     {
-        $destroyvar = debate::find($id);
-        if($destroyvar){
+            // Find the debate by ID with its pros and cons
+            $debate = Debate::with(['pros', 'cons'])->find($id);
 
-            $destroyvar ->delete();
+            if (!$debate) {
+                return response()->json([
+                    'status' => 404,
+                    'message' => "Debate not found!"
+                ], 404);
+            }
+
+            // Delete the debate and its entire hierarchy
+            $this->deleteDebateHierarchy($debate);
 
             return response()->json([
                 'status' => 200,
-                'Debate' => "Debate topic Deleted Successfully"
-            ],200);
+                'message' => "Debate topic and its hierarchy deleted successfully"
+            ], 200);
+    }
 
-        }else{
+    private function deleteDebateHierarchy($debate)
+    {
+            // Recursively delete child debates (pros and cons)
+            if ($debate->pros) {
+                foreach ($debate->pros as $pro) {
+                    $this->deleteDebateHierarchy($pro);
+                }
+            }
 
-            return response()->json([
-                'status' => 500,
-                'message' => "OOPS! Something went wrong!No such ID Found"
-            ],500);
-        }
+            if ($debate->cons) {
+                foreach ($debate->cons as $con) {
+                    $this->deleteDebateHierarchy($con);
+                }
+            }
+
+            // Delete the current debate
+            $debate->delete();
     }
 
 
     /*** CLASS TO SELECT PROS SIDE ***/
+    
     public function addProsChildDebate(Request $request, int $parentId)
     {
         return $this->addChildDebate($request, $parentId, 'pros');
     }
 
     /*** CLASS TO SELECT CONS SIDE ***/
+
     public function addConsChildDebate(Request $request, int $parentId)
     {
         return $this->addChildDebate($request, $parentId, 'cons');
@@ -345,8 +361,8 @@ public function getDebatesByTag($tag)
     }
     
 
-
     /*** CLASS TO DISPLAY DEBATE BY ID ***/
+
     public function getDebateByIdWithHierarchy($id)
     {
         // Find the specified debate by ID with its pros and cons
@@ -367,6 +383,26 @@ public function getDebatesByTag($tag)
             'debate' => $transformedDebate,
         ], 200);
     }
+
+    private function transformDebate($debate)
+    {
+        $debate->tags = json_decode($debate->tags);
+
+        if ($debate->pros) {
+            $debate->pros->transform(function ($pro) {
+                return $this->transformDebate($pro);
+            });
+        }
+
+        if ($debate->cons) {
+            $debate->cons->transform(function ($con) {
+                return $this->transformDebate($con);
+            });
+        }
+
+        return $debate;
+    }
+
 
 
 }
