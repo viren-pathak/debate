@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Debate;
+use App\Models\Vote;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Validator;
@@ -73,7 +75,8 @@ class DebateController extends Controller
             'image' => $filePath,
             'imgname' => $filePath ? pathinfo($filePath, PATHINFO_FILENAME) : null,
             'isDebatePublic' => $request->isDebatePublic,
-            'isType' => $request->isType
+            'isType' => $request->isType,
+            'voting_allowed' => $request->voting_allowed ?? false, 
         ]);
     
         if ($storevar) {
@@ -220,7 +223,8 @@ class DebateController extends Controller
                     'image' => $filePath,
                     'imgname' => $filePath ? pathinfo($filePath, PATHINFO_FILENAME) : null,
                     'isDebatePublic' => $request->isDebatePublic,
-                    'isType' => $request->isType
+                    'isType' => $request->isType,
+                    'voting_allowed' => $request->voting_allowed ?? false,
                 ]);
         
                 return response()->json([
@@ -403,6 +407,86 @@ class DebateController extends Controller
         return $debate;
     }
 
+
+    /*** CLASS TO VOTE DEBATES ***/
+
+    public function vote(Request $request, int $debateId)
+    {
+        $validator = Validator::make($request->all(), [
+            'vote' => 'required|integer|between:1,5',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 422,
+                'errors' => $validator->messages()
+            ], 422);
+        }
+
+        $debate = Debate::find($debateId);
+
+        if (!$debate) {
+            return response()->json([
+                'status' => 404,
+                'message' => "Debate not found!"
+            ], 404);
+        }
+
+        if (!$debate->voting_allowed) {
+            return response()->json([
+                'status' => 403,
+                'message' => "Voting is not allowed for this debate."
+            ], 403);
+        }
+
+        $vote = new Vote([
+            'vote' => $request->vote,
+        ]);
+
+        $debate->votes()->save($vote);
+
+        // Increment total_votes column
+        $debate->increment('total_votes');
+
+        return response()->json([
+            'status' => 200,
+            'message' => 'Vote recorded successfully',
+        ], 200);
+    }
+
+
+    /*** CLASS TO GET VOTE COUNT ***/
+
+
+    public function getVoteCounts($debateId)
+    {
+        $debate = Debate::find($debateId);
+
+        if (!$debate) {
+            return response()->json([
+                'status' => 404,
+                'message' => "Debate not found!"
+            ], 404);
+        }
+
+        $voteCounts = $debate->votes()
+            ->select('vote', DB::raw('COUNT(*) as count'))
+            ->groupBy('vote')
+            ->get();
+
+        // Create an array with vote counts for all possible votes (1 to 5)
+        $allVoteCounts = array_fill_keys(range(1, 5), 0);
+
+        // Merge the actual vote counts into the array
+        $voteCounts->each(function ($voteCount) use (&$allVoteCounts) {
+            $allVoteCounts[$voteCount->vote] = $voteCount->count;
+        });
+
+        return response()->json([
+            'status' => 200,
+            'voteCounts' => $allVoteCounts,
+        ], 200);
+    }
 
 
 }

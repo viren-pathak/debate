@@ -24,6 +24,8 @@ return new class extends Migration
             $table->timestamps();
             $table->string('isDebatePublic')->nullable();
             $table->string('isType')->nullable();
+            $table->boolean('voting_allowed')->default(false);
+            $table->integer('total_votes')->default(0);
             
         });
     }

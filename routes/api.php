@@ -37,6 +37,9 @@ Route::get('/debates/tags', [DebateController::class, 'getAllTags']);//display a
 Route::get('/debates/tag/{tag}', [DebateController::class, 'getDebatesByTag']);//get debates by tag
 Route::get('getdebatebyid/{id}/displaydebate', [DebateController::class, 'getDebateByIdWithHierarchy']); // Display Debate by ID
 
+Route::post('/debates/{debateId}/vote', [DebateController::class, 'vote']);
+Route::get('/debates/{debateId}/vote-counts', [DebateController::class, 'getVoteCounts']);
+
 
 Route::post('/debates/{parentId}/addProsChildDebate', [DebateController::class, 'addProsChildDebate']);
 Route::post('/debates/{parentId}/addConsChildDebate', [DebateController::class, 'addConsChildDebate']);

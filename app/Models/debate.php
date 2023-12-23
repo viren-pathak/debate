@@ -21,7 +21,9 @@ class debate extends Model
         'image',
         'imgname',
         'isDebatePublic',
-        'isType'
+        'isType',
+        'voting_allowed',
+        'total_votes'
     ];
 
     public function children()
@@ -42,5 +44,10 @@ class debate extends Model
     public function cons()
     {
         return $this->children()->where('side', 'cons');
+    }
+
+    public function votes()
+    {
+        return $this->hasMany(Vote::class);
     }
 }
