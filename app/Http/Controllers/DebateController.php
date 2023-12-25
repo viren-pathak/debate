@@ -10,6 +10,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
 use App\FileUploadService;
+use App\Models\DebateComment;
 
 
 
@@ -457,7 +458,6 @@ class DebateController extends Controller
 
     /*** CLASS TO GET VOTE COUNT ***/
 
-
     public function getVoteCounts($debateId)
     {
         $debate = Debate::find($debateId);
@@ -489,4 +489,116 @@ class DebateController extends Controller
     }
 
 
+    /*** CLASS TO ADD COMMENTS IN DEBATE ***/
+
+    public function addComment(Request $request, int $debateId)
+    {
+        $validator = Validator::make($request->all(), [
+            'comment' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 422,
+                'errors' => $validator->messages(),
+            ], 422);
+        }
+
+        $debateComment = DebateComment::create([
+            'user_id' => auth()->id(), // Assuming you have user authentication
+            'debate_id' => $debateId,
+            'comment' => $request->comment,
+        ]);
+
+        return response()->json([
+            'status' => 200,
+            'message' => 'Comment added successfully',
+            'comment' => $debateComment,
+        ], 200);
+    }
+
+
+    
+    /*** CLASS TO EDIT COMMENT ***/
+
+    public function editComment(Request $request, int $commentId)
+    {
+        $user = $request->user();
+        $comment = DebateComment::find($commentId);
+
+        if (!$comment) {
+            return response()->json([
+                'status' => 404,
+                'message' => "Comment not found!"
+            ], 404);
+        }
+
+        // Check if the user is the owner of the comment
+        if ($comment->user_id !== $user->id) {
+            return response()->json([
+                'status' => 403,
+                'message' => "You do not have permission to edit this comment."
+            ], 403);
+        }
+
+        // Update the comment
+        $comment->update([
+            'comment' => $request->comment,
+        ]);
+
+        return response()->json([
+            'status' => 200,
+            'message' => 'Comment edited successfully',
+            'comment' => $comment,
+        ], 200);
+    }
+
+
+
+    /*** CLASS TO HIDE COMMENT ***/
+
+    public function hideComment(Request $request, int $commentId)
+    {
+        $user = $request->user();
+        $comment = DebateComment::find($commentId);
+
+        if (!$comment) {
+            return response()->json([
+                'status' => 404,
+                'message' => "Comment not found!"
+            ], 404);
+        }
+
+        // Check if the user is the owner of the comment
+        if ($comment->user_id !== $user->id) {
+            return response()->json([
+                'status' => 403,
+                'message' => "You do not have permission to hide this comment."
+            ], 403);
+        }
+
+        // Soft delete the comment (mark it as hidden)
+        $comment->delete();
+
+        return response()->json([
+            'status' => 200,
+            'message' => 'Comment hidden successfully',
+        ], 200);
+    }
+
+
+    /*** CLASS TO RETRIVE COMMENTS LIST ***/
+
+    public function getComments(int $debateId)
+    {
+        $comments = DebateComment::where('debate_id', $debateId)
+            ->with('user:id,username') // Load user relationship to get user names
+            ->orderBy('created_at', 'asc')
+            ->get();
+
+        return response()->json([
+            'status' => 200,
+            'comments' => $comments,
+        ], 200);
+    }
 }

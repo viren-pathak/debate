@@ -19,7 +19,7 @@ use App\Http\Controllers\PasswordResetController;
 |
 */
 
-// Public routes with authentication
+// Public routes without authentication
 Route::post('/register', [UserController::class, 'register']); // API for user registration
 Route::post('/login', [UserController::class, 'login']); // API for user login
 Route::post('/send-reset-password-email', [PasswordResetController::class, 'send_reset_password_email']); // API TO send Reset Password Email
@@ -37,8 +37,10 @@ Route::get('/debates/tags', [DebateController::class, 'getAllTags']);//display a
 Route::get('/debates/tag/{tag}', [DebateController::class, 'getDebatesByTag']);//get debates by tag
 Route::get('getdebatebyid/{id}/displaydebate', [DebateController::class, 'getDebateByIdWithHierarchy']); // Display Debate by ID
 
-Route::post('/debates/{debateId}/vote', [DebateController::class, 'vote']);
-Route::get('/debates/{debateId}/vote-counts', [DebateController::class, 'getVoteCounts']);
+Route::post('/debates/{debateId}/vote', [DebateController::class, 'vote']); // Add vote into debate
+Route::get('/debates/{debateId}/vote-counts', [DebateController::class, 'getVoteCounts']); // get vote list
+
+Route::get('/debates/{debateId}/commentsList', [DebateController::class, 'getComments']); // Get Comments List
 
 
 Route::post('/debates/{parentId}/addProsChildDebate', [DebateController::class, 'addProsChildDebate']);
@@ -46,9 +48,13 @@ Route::post('/debates/{parentId}/addConsChildDebate', [DebateController::class, 
 Route::get('/debates/{parentId}/getProsChildDebates', [DebateController::class, 'getProsChildDebates']);
 Route::get('/debates/{parentId}/getConsChildDebates', [DebateController::class, 'getConsChildDebates']);
 
-// Protetcted Routes
+// Protetcted Routes (user Authentication needed for these APIs)
 Route::middleware(['auth:sanctum', 'verified'])->group(function(){
     Route::post('/logout', [UserController::class, 'logout']); // API for user logout
     Route::get('/loggeduser', [UserController::class, 'logged_user']); // API for logged In user details
     Route::post('/changepassword', [UserController::class, 'change_password']); // API for changing password when user logged in
+
+    Route::post('/debates/{debateId}/addComments', [DebateController::class, 'addComment']); // Add Comments
+    Route::put('/comments/{commentId}/editComment', [DebateController::class, 'editComment']); // Edit Comments
+    Route::delete('/comments/{commentId}/hideComment', [DebateController::class, 'hideComment']); // hide Comments
 }); 
