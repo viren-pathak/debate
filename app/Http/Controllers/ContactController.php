@@ -11,6 +11,7 @@ class ContactController extends Controller
     public function sendMail(Request $request)
     {
         try {
+            // validator of inputs
             $data = $request->validate([
                 'fullname' => 'required|string|max:255',
                 'email' => 'required|string|email|max:255',
@@ -26,6 +27,15 @@ class ContactController extends Controller
             }
 
             // Send email through class app/mail/ContactFormMail
+            
+            /** 
+             * 
+             * CHANGE EMAIL ADDRESSS *
+             * 
+             * 
+             * 
+             **/
+
             Mail::to('jmbliss83@gmail.com')->send(new ContactFormMail(
                 $data['fullname'],
                 $data['email'],
@@ -35,7 +45,7 @@ class ContactController extends Controller
             ));
 
             // Pass the data to the view
-            return response()->json(['message' => 'Your message has been sent!', 'data' => $data]);
+            return response()->json(['message' => 'Your message has been sent to jmbliss83@gmail.com (change into contact controller)', 'data' => $data]);
 
         } catch (\Exception $e) {
             return response()->json(['error' => 'Unable to send email. Please try again.'], 500);

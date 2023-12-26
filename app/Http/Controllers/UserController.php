@@ -55,7 +55,7 @@ class UserController extends Controller
         // Response after successful registration
         return response([
             'token' => $token,
-            'message' => 'Registeration Successful',
+            'message' => 'Registeration Successful , Please check your mail box to verify email address',
             'status'=>'success'
         ], 201); 
     }

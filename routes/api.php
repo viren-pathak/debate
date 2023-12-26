@@ -26,7 +26,7 @@ Route::post('/send-reset-password-email', [PasswordResetController::class, 'send
 Route::post('/reset-password/{token}', [PasswordResetController::class, 'reset_password']); // API For reseting password
 Route::get('/verify-email/{token}', [VerificationController::class, 'verify'])->name('verification.verify');
 
-Route::post('/contact-form', [ContactController::class, 'sendMail'])->name('addContact');
+Route::post('/contact-form', [ContactController::class, 'sendMail'])->name('addContact'); // API FOR SUpport Contact form
 
 Route::get('showalldebate', [DebateController::class, 'getalldebates']);//show all the debates  
 Route::post('createdebate', [DebateController::class, 'storetodb']);//create debates
