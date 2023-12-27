@@ -21,7 +21,6 @@ class UserController extends Controller
             'name' => 'required',
             'email' => 'required|email',
             'password' => 'required|confirmed',
-            'tc' => 'required',
             'username' => 'required|unique:users'
         ]);
 
@@ -38,7 +37,6 @@ class UserController extends Controller
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'tc' => json_decode($request->tc),
             'verification_token' => \Str::random(40),
             'username' => $request->username
         ]);
