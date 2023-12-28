@@ -20,14 +20,31 @@ class VerificationController extends Controller
         }
 
         if (!$user->hasVerifiedEmail()) {
+            if (!$user->verification_token) {
+                // Token has already been used
+                return response([
+                    'message' => 'Token has already been used',
+                    'status' => 'failed'
+                ], 400);
+            }
+
             $user->markEmailAsVerified();
+            $user->verification_token = null; // Invalidate the token
+            $user->save();
+
             event(new Verified($user));
+
+            // Redirect to your React application upon successful verification
+            return redirect('https://diyun.jmbliss.com/my');
         }
 
         return response([
-            'message' => 'Email verified successfully',
+            'message' => 'Email already verified',
+            'name' => $user->name,
+            'email' => $user->email,
+            'username' => $user->username,
+            'email_verified_at' => $user->email_verified_at,
             'status' => 'success'
         ], 200);
     }
 }
-

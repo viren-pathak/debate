@@ -53,14 +53,19 @@ class UserController extends Controller
         // Response after successful registration
         return response([
             'token' => $token,
-            'message' => 'Registeration Successful , Please check your mail box to verify email address',
-            'status'=>'success'
+            'name' => $user->name,
+            'email' => $user->email,
+            'username' => $user->username,
+            'email_verified_at' => $user->email_verified_at,
+            'message' => 'Registration Successful, Please check your mailbox to verify email address',
+            'status' => 'success'
         ], 201); 
     }
 
 
 
     /*** Function For USER Login ***/
+    
     public function login(Request $request){
         //request validtion
         $request->validate([
@@ -81,8 +86,12 @@ class UserController extends Controller
             // Response after successful login
             return response([
                 'token' => $token,
+                'name' => $user->name,
+                'email' => $user->email,
+                'username' => $user->username,
+                'email_verified_at' => $user->email_verified_at,
                 'message' => 'Login Successful',
-                'status'=>'success'
+                'status' => 'success'
             ], 200);
         
         }
