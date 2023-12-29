@@ -36,7 +36,7 @@ class ContactController extends Controller
              * 
              **/
 
-            Mail::to('jmbliss83@gmail.com')->send(new ContactFormMail(
+            Mail::to(config('mail.from.address'), config('mail.from.name'))->send(new ContactFormMail(
                 $data['fullname'],
                 $data['email'],
                 $data['subject'],

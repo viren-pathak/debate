@@ -46,10 +46,10 @@ class ContactFormMail extends Mailable
      */
     public function build()
     {
-        // Get the message hierarchy from email view resourcses/views/emails/contact-form.blade.php
+        // Get the message hierarchy from the email view resources/views/emails/contact-form.blade.php
         $message = $this->markdown('emails.contact-form') 
-            ->from($this->email, $this->name);
-
+            ->from(config('mail.from.address'), config('mail.from.name'));
+    
         // Attach the screenshot
         if ($this->attachments) {
             $message->attachData(
@@ -60,7 +60,7 @@ class ContactFormMail extends Mailable
                 ]
             );
         }
-
+    
         return $message;
-    }
+    }    
 }
