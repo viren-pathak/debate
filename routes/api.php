@@ -45,10 +45,8 @@ Route::get('/debates/{debateId}/vote-counts', [DebateController::class, 'getVote
 Route::get('/debates/{debateId}/commentsList', [DebateController::class, 'getComments']); // Get Comments List
 
 
-Route::post('/debates/{parentId}/addProsChildDebate', [DebateController::class, 'addProsChildDebate']);
-Route::post('/debates/{parentId}/addConsChildDebate', [DebateController::class, 'addConsChildDebate']);
-Route::get('/debates/{parentId}/getProsChildDebates', [DebateController::class, 'getProsChildDebates']);
-Route::get('/debates/{parentId}/getConsChildDebates', [DebateController::class, 'getConsChildDebates']);
+Route::post('/debates/{parentId}/addProsChildDebate', [DebateController::class, 'addProsChildDebate']); // Add pros to debate
+Route::post('/debates/{parentId}/addConsChildDebate', [DebateController::class, 'addConsChildDebate']); // Add Cons to debate
 
 // Protetcted Routes (user Authentication needed for these APIs)
 Route::middleware(['auth:sanctum', 'verified'])->group(function(){

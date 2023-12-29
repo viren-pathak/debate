@@ -298,6 +298,8 @@ class DebateController extends Controller
         return $this->addChildDebate($request, $parentId, 'cons');
     }
     
+
+    /*** CLASS TO ADD CHILD DEBATE BY SELECTING SIDE (PROS/CONS) ***/
     private function addChildDebate(Request $request, int $parentId, string $side)
     {
         // Validate input
@@ -336,35 +338,7 @@ class DebateController extends Controller
         ], 200);
     }
     
-    public function getProsChildDebates($parentId)
-    {
-        return $this->getChildDebates($parentId, 'pros');
-    }
-    
-    public function getConsChildDebates($parentId)
-    {
-        return $this->getChildDebates($parentId, 'cons');
-    }
-    
-    private function getChildDebates($parentId, $side)
-    {
-        $parentDebate = Debate::find($parentId);
-    
-        if (!$parentDebate) {
-            return response()->json([
-                'status' => 404,
-                'message' => "Parent Debate not found!"
-            ], 404);
-        }
-    
-        $childDebates = $parentDebate->{$side}()->get();
-    
-        return response()->json([
-            'status' => 200,
-            'childDebates' => $childDebates,
-        ], 200);
-    }
-    
+
 
     /*** CLASS TO DISPLAY DEBATE BY ID ***/
 
