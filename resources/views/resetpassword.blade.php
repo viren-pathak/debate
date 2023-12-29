@@ -12,7 +12,11 @@
     <p>We cannot simply send you your old password. A unique link
     to reset your password has been generated for you. To reset your
     password, click the following link and follow the instructions.</p>
+        <!-- FOR LOCAL HOST -->
         <h1><a href= "http://127.0.0.1:8000/reset-password/{{$token}}">Click Here to Reset Password</a></h1>
+        
+        <!-- FOR LIVE SITE -->
+        <!-- <h1><a href= "https://diyun.jmbliss.com/forget-password/{$token}">Click Here to Reset Password</a></h1> -->
 
     
 </body>

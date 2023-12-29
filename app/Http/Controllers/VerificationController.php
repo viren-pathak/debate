@@ -13,19 +13,42 @@ class VerificationController extends Controller
         $user = User::where('verification_token', $token)->first();
 
         if (!$user) {
-            return response([
-                'message' => 'Invalid verification token',
-                'status' => 'failed'
-            ], 400);
+            /*
+            *
+            FOR LOCAL HOST
+            *
+                // invalid token
+                return response([
+                    'message' => 'Invalid token',
+                    'status' => 'failed'
+                ], 400);
+
+            *
+            */
+
+            // For live site
+
+            return redirect("https://diyun.jmbliss.com/my/{$token}");
         }
 
         if (!$user->hasVerifiedEmail()) {
             if (!$user->verification_token) {
+            /*
+            *
+            FOR LOCAL HOST
+            *
                 // Token has already been used
                 return response([
                     'message' => 'Token has already been used',
                     'status' => 'failed'
                 ], 400);
+
+            *
+            */
+
+            // For live site
+
+                return redirect("https://diyun.jmbliss.com/my/{$token}");
             }
 
             $user->markEmailAsVerified();
@@ -35,11 +58,11 @@ class VerificationController extends Controller
             event(new Verified($user));
 
             // Redirect to your React application upon successful verification
-            return redirect('https://diyun.jmbliss.com/my');
+            return redirect("https://diyun.jmbliss.com/my/{$token}");
         }
 
         return response([
-            'message' => 'Email already verified',
+            'message' => 'Email verified successfully',
             'name' => $user->name,
             'email' => $user->email,
             'username' => $user->username,
