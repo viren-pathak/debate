@@ -40,6 +40,7 @@ Route::get('/debates/tag/{tag}', [DebateController::class, 'getDebatesByTag']);/
 Route::get('getdebatebyid/{id}/displaydebate', [DebateController::class, 'getDebateByIdWithHierarchy']); // Display Debate by ID
 Route::post('/search', [DebateController::class, 'searchDebates']); // search Debate by tag , thesis and title
 Route::get('/top-contributors', [DebateController::class, 'topContributors']); // Get list of top contributors in home page
+Route::get('/overall-stats', [DebateController::class, 'overallStats']); // Get overall stats of diyun
 
 Route::post('/debates/{debateId}/vote', [DebateController::class, 'vote']); // Add vote into debate
 Route::get('/debates/{debateId}/vote-counts', [DebateController::class, 'getVoteCounts']); // get vote list

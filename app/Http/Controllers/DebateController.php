@@ -733,6 +733,7 @@ class DebateController extends Controller
             ], 404);
         }
     }
+
     
     /*** CLASS TO GET LIST OF TOP CONTRIBUTORS IN FEATURED PAGE ***/
 
@@ -748,5 +749,32 @@ class DebateController extends Controller
             'topContributors' => $topContributors,
         ], 200);
     }
+
+
+    /*** CLASS TO GET OVERALL STATS FOR HOME PAGE ***/
+
+    public function overallStats()
+    {
+        // Fetch overall contributions (sum of total contributions of all users)
+        $overallContributions = (int) User::sum('total_contributions');
+    
+        // Fetch overall votes (sum of total votes of all users)
+        $overallVotes = (int) Vote::count();
+    
+        // Fetch overall parent debates (total parent debates only excluding child debates)
+        $overallParentDebates = (int) Debate::whereNull('parent_id')->count();
+    
+        // Fetch overall claims (sum of total claims from all users)
+        $overallClaims = (int) User::sum('total_claims');
+    
+        return response()->json([
+            'status' => 200,
+            'overallContributions' => $overallContributions,
+            'overallVotes' => $overallVotes,
+            'overallParentDebates' => $overallParentDebates,
+            'overallClaims' => $overallClaims,
+        ], 200);
+    }
+    
 
 }
