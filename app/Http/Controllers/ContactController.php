@@ -17,17 +17,14 @@ class ContactController extends Controller
                 'email' => 'required|string|email|max:255',
                 'subject' => 'required|string|max:255',
                 'message' => 'required|string|max:255',
-                'attachments' => 'file|image|mimes:jpeg,png,jpg,gif|max:2048',
+                'attachments' => 'nullable', // Ensure attachments is an array
+                'attachments.*' => 'file|image|mimes:jpeg,png,jpg,gif|max:2048',
             ]);
-
+    
             // Process screenshot attachment
-            $attachments = null;
-            if ($request->hasFile('attachments')) {
-                $attachments = $request->file('attachments');
-            }
-
+            $attachments = $request->hasFile('attachments') ? $request->file('attachments') : [];    
             // Send email through class app/mail/ContactFormMail
-            
+    
             /** 
              * 
              * CHANGE EMAIL ADDRESSS *
@@ -35,7 +32,7 @@ class ContactController extends Controller
              * 
              * 
              **/
-
+    
             Mail::to(config('mail.from.address'), config('mail.from.name'))->send(new ContactFormMail(
                 $data['fullname'],
                 $data['email'],
@@ -43,10 +40,10 @@ class ContactController extends Controller
                 $data['message'],
                 $attachments
             ));
-
+    
             // Pass the data to the view
             return response()->json(['message' => 'Your message has been sent to jmbliss83@gmail.com (change into contact controller)', 'data' => $data]);
-
+    
         } catch (\Exception $e) {
             return response()->json(['error' => 'Unable to send email. Please try again.'], 500);
         }

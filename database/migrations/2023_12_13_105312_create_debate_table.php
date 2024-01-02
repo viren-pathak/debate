@@ -13,6 +13,7 @@ return new class extends Migration
     {
         Schema::create('debate', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('user_id')->constrained('users', 'id'); // Add this line to connect user with debate
             $table->foreignId('parent_id')->nullable()->constrained('debate', 'id')->onDelete('cascade');
             $table->string('side')->nullable(); // Add this line to include the 'side' colum
             $table->string('title');

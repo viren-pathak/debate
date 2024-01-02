@@ -10,6 +10,10 @@ use App\Notifications\VerifyEmailNotification;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Mail\Message;
 use Illuminate\Support\Str;
+use App\Http\Controllers\DebateController;
+use App\Models\Debate;
+use App\Models\Vote;
+use App\Models\DebateComment;
 
 class UserController extends Controller
 {
@@ -117,16 +121,149 @@ class UserController extends Controller
     }
 
 
-    /*** Function For Getting Data of logged in USER ***/
+    /*** Function to get USER Profile Details ***/
 
-    public function logged_user(Request $request){
-        $loggeduser = auth()->user(); // validate user logged in or not
+    public function userProfileDetails(Request $request){
+        $loggedUser = auth()->user(); // Retrieve the authenticated user
 
-        // Response for displaying user data
-        return response([
-            'user' => $loggeduser,
-            'message' => 'User Details',
-            'status'=>'success'
+        // Check if the user is logged in
+        if (!$loggedUser) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'Unauthorized Access'
+            ], 401);
+        }
+
+        // Response for displaying user profile details
+        return response()->json([
+            'status' => 200,
+            'username' => $loggedUser->username,
+            'created_at' => $loggedUser->created_at->toDateTimeString(), // Format the creation time
+            'message' => 'User Profile Details',
+        ], 200);
+    }
+
+
+
+    /*** FUNCTION TO GET NUMBERS OF USER CONTRIBUTIONS ***/
+
+    public function userContributions(Request $request)
+    {
+        $user = $request->user();
+
+        // Fetch the sum of debates, pros, and child debates created by the user
+        $totalClaims = Debate::where('user_id', $user->id)
+            ->orWhere('side', 'pros')
+            ->orWhereNotNull('parent_id')
+            ->count();
+
+        // Fetch total number of votes given by the user
+        $totalVotes = Vote::whereHas('debate', function ($query) use ($user) {
+            $query->where('user_id', $user->id);
+        })->count();
+
+        // Fetch total number of comments made by the user
+        $totalComments = DebateComment::where('user_id', $user->id)->count();
+
+        // Calculate total contributions
+        $totalContributions = $totalClaims + $totalVotes + $totalComments;
+
+        // Update user contributions in the database
+        $user->total_claims = $totalClaims;
+        $user->total_votes = $totalVotes;
+        $user->total_comments = $totalComments;
+        $user->total_contributions = $totalContributions;
+        $user->save();
+
+        // Return the dashboard data
+        return response()->json([
+            'status' => 200,
+            'userContributions' => [
+                'totalClaims' => $totalClaims,
+                'totalVotes' => $totalVotes,
+                'totalComments' => $totalComments,
+                'totalContributions' => $totalContributions,
+            ],
+        ], 200);
+    }
+
+
+    /*** FUNCTIOON TO GET USER ACTIVITY  ***/
+    
+    public function getUserActivity(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'Unauthorized Access'
+            ], 401);
+        }
+
+        // Get all debates created or participated by the user
+        $debates = Debate::where('user_id', $user->id)
+            ->orWhereHas('pros', function ($query) use ($user) {
+                $query->where('user_id', $user->id);
+            })
+            ->orWhereHas('cons', function ($query) use ($user) {
+                $query->where('user_id', $user->id);
+            })
+            ->get();
+
+        // Get comments made by the user
+        $comments = DebateComment::where('user_id', $user->id)->get();
+
+        // Get votes given by the user
+        $votes = Vote::where('user_id', $user->id)->get();
+
+        // Combine all activities
+        $activities = collect([])
+            ->merge($debates->map(function ($debate) {
+                return [
+                    'type' => 'debate',
+                    'id' => $debate->parent_id ?? $debate->id,
+                    'title' => $debate->parent_id ? Debate::find($debate->parent_id)->title : $debate->title,
+                    'created_at' => $debate->created_at,
+                ];
+            }))
+            ->merge($comments->map(function ($comment) {
+                $debateId = $comment->debate->parent_id ?? $comment->debate_id;
+                $parentDebate = Debate::where('id', $debateId)->first();
+
+                return [
+                    'type' => 'comment',
+                    'id' => $parentDebate->parent_id ?? $debateId,
+                    'title' => $parentDebate->title,
+                    'created_at' => $comment->created_at,
+                ];
+            }))
+            ->merge($votes->map(function ($vote) {
+                $debateId = $vote->debate->parent_id ?? $vote->debate_id;
+                $parentDebate = Debate::where('id', $debateId)->first();
+
+                return [
+                    'type' => 'vote',
+                    'id' => $parentDebate->parent_id ?? $debateId,
+                    'title' => $parentDebate->title,
+                    'created_at' => $vote->created_at,
+                ];
+            }));
+
+        // Group activities by debate ID
+        $groupedActivities = $activities->groupBy('id');
+
+        // Keep only the entry with the latest timestamp for each debate ID within the same month
+        $filteredActivities = $groupedActivities->map(function ($group) {
+            return $group->sortByDesc('created_at')->first();
+        });
+
+        // Sort the final activities by created_at in descending order
+        $sortedActivities = $filteredActivities->sortByDesc('created_at');
+
+        return response()->json([
+            'status' => 200,
+            'activity' => $sortedActivities->values()->all(),
         ], 200);
     }
 

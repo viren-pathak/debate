@@ -38,6 +38,8 @@ Route::put('getdebatebyid/{id}/imageupload', [DebateController::class, 'debateim
 Route::get('/debates/tags', [DebateController::class, 'getAllTags']);//display all tags
 Route::get('/debates/tag/{tag}', [DebateController::class, 'getDebatesByTag']);//get debates by tag
 Route::get('getdebatebyid/{id}/displaydebate', [DebateController::class, 'getDebateByIdWithHierarchy']); // Display Debate by ID
+Route::post('/search', [DebateController::class, 'searchDebates']); // search Debate by tag , thesis and title
+Route::get('/top-contributors', [DebateController::class, 'topContributors']); // Get list of top contributors in home page
 
 Route::post('/debates/{debateId}/vote', [DebateController::class, 'vote']); // Add vote into debate
 Route::get('/debates/{debateId}/vote-counts', [DebateController::class, 'getVoteCounts']); // get vote list
@@ -51,8 +53,10 @@ Route::post('/debates/{parentId}/addConsChildDebate', [DebateController::class, 
 // Protetcted Routes (user Authentication needed for these APIs)
 Route::middleware(['auth:sanctum', 'verified'])->group(function(){
     Route::post('/logout', [UserController::class, 'logout']); // API for user logout
-    Route::get('/loggeduser', [UserController::class, 'logged_user']); // API for logged In user details
     Route::post('/changepassword', [UserController::class, 'change_password']); // API for changing password when user logged in
+    Route::get('/user-profile-details', [UserController::class, 'userProfileDetails']); // API TO get user profile
+    Route::get('/user-contributions', [UserController::class, 'userContributions']); // Api for getting number of user contributions
+    Route::get('/user-activity', [UserController::class, 'getUserActivity']);
 
     Route::post('/debates/{debateId}/addComments', [DebateController::class, 'addComment']); // Add Comments
     Route::put('/comments/{commentId}/editComment', [DebateController::class, 'editComment']); // Edit Comments

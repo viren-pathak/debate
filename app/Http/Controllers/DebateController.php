@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Debate;
 use App\Models\Vote;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
@@ -60,15 +61,26 @@ class DebateController extends Controller
             ], 422);
         }
     
+        $user = auth('sanctum')->user(); // Retrieve the authenticated user
+
+        if (!$user) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'Unauthorized Access'
+            ], 401);
+        }
+    
+
         $filePath = null;
         if ($request->hasFile('file')) {
             $file = $request->file('file');
             $filePath = FileUploadService::upload($file, 'debate_images');
         }
-    
+
         $tagsArray = explode(',', $request->tags); // Convert tags to an array
-    
+
         $storevar = debate::create([
+            'user_id' => $user->id,
             'title' => $request->title,
             'thesis' => $request->thesis,
             'tags' => json_encode($tagsArray), // Convert the array to a JSON string before storing
@@ -77,18 +89,23 @@ class DebateController extends Controller
             'imgname' => $filePath ? pathinfo($filePath, PATHINFO_FILENAME) : null,
             'isDebatePublic' => $request->isDebatePublic,
             'isType' => $request->isType,
-            'voting_allowed' => $request->voting_allowed ?? false, 
+            'voting_allowed' => $request->voting_allowed ?? false,
         ]);
-    
+
+        // Update user comments & contributions in users table
+        $user->total_claims += 1; // Increment total claims
+        $user->total_contributions += 1; // Increment total contributions
+        $user->save();
+
         if ($storevar) {
             return response()->json([
                 'status' => 200,
-                'message' => 'Debate topic created Successfully'
+                'message' => 'Debate topic created Successfully',
             ], 200);
         } else {
             return response()->json([
                 'status' => 500,
-                'message' => "OOPS! Something went wrong!"
+                'message' => "OOPS! Something went wrong!",
             ], 500);
         }
     }
@@ -98,21 +115,36 @@ class DebateController extends Controller
 
     public function getbyid($id)
     {
-        $findbyidvar = debate::find($id);
-        if ($findbyidvar){
-            // Decode the JSON-encoded tags
-            $findbyidvar->tags = json_decode($findbyidvar->tags);
-            return response()->json([
-                'status' => 200,
-                'Debate' => $findbyidvar
-            ],200);
-        }else{
+        $user = auth('sanctum')->user(); // Retrieve the authenticated user
 
+        if (!$user) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'You are not authorized'
+            ], 401);
+        }
+
+        $findbyidvar = Debate::find($id);
+    
+        if (!$findbyidvar) {
             return response()->json([
                 'status' => 404,
-                'message' => "No Such Topic Found!" 
-            ],404);
+                'message' => "No Such Topic Found!"
+            ], 404);
         }
+    
+        // Check if the authenticated user is the owner of the debate
+        if ($user->id !== $findbyidvar->user_id) {
+            return response()->json([
+                'status' => 403,
+                'message' => "You do not have permission to edit this debate."
+            ], 403);
+        }
+    
+        return response()->json([
+            'status' => 200,
+            'Debate' => $findbyidvar
+        ], 200);
     }
 
 
@@ -166,26 +198,54 @@ class DebateController extends Controller
 
     public function editdebateindb($id)
     {
-        $findbyidvar = debate::find($id);
-        if ($findbyidvar){
-            return response()->json([
-                'status' => 200,
-                'Debate' => $findbyidvar
-            ],200);
-        }else{
+        $user = auth('sanctum')->user(); // Retrieve the authenticated user
 
+        if (!$user) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'You are not authorized'
+            ], 401);
+        }
+
+        $findbyidvar = Debate::find($id);
+    
+        if (!$findbyidvar) {
             return response()->json([
                 'status' => 404,
-                'message' => "No Such Topic Found!" 
-            ],404);
+                'message' => "No Such Topic Found!"
+            ], 404);
         }
+    
+        // Check if the authenticated user is the owner of the debate
+        if ($user->id !== $findbyidvar->user_id) {
+            return response()->json([
+                'status' => 403,
+                'message' => "You do not have permission to edit this debate."
+            ], 403);
+        }
+    
+        return response()->json([
+            'status' => 200,
+            'Debate' => $findbyidvar
+        ], 200);
     }
+    
 
 
     /** CLASS TO UPDATE DEBATE BY ID ***/
 
     public function updatedebate(Request $request, int $id)
     {
+
+            $user = auth('sanctum')->user(); // Retrieve the authenticated user
+
+            if (!$user) {
+                return response()->json([
+                    'status' => 401,
+                    'message' => 'You are not authorized'
+                ], 401);
+            }
+
             $validator = Validator::make($request->all(), [
                 'title' => 'string|max:191',
                 'thesis' => 'string|max:191',
@@ -202,6 +262,21 @@ class DebateController extends Controller
             }
         
             $storevar = debate::find($id);
+            if (!$storevar) {
+                return response()->json([
+                    'status' => 404,
+                    'message' => "No Such Topic Found!"
+                ], 404);
+            }
+
+            // Check if the authenticated user is the owner of the debate
+            if ($user->id !== $storevar->user_id) {
+                return response()->json([
+                    'status' => 403,
+                    'message' => "You do not have permission to update this debate."
+                ], 403);
+            }
+    
             if ($storevar) {
                 // Delete existing file
                 FileUploadService::delete($storevar->image);
@@ -232,12 +307,7 @@ class DebateController extends Controller
                     'status' => 200,
                     'message' => 'Debate topic Updated Successfully'
                 ], 200);
-            } else {
-                return response()->json([
-                    'status' => 404,
-                    'message' => "No Such Topic Found!"
-                ], 404);
-            }
+            } 
     }
 
         
@@ -300,6 +370,7 @@ class DebateController extends Controller
     
 
     /*** CLASS TO ADD CHILD DEBATE BY SELECTING SIDE (PROS/CONS) ***/
+
     private function addChildDebate(Request $request, int $parentId, string $side)
     {
         // Validate input
@@ -314,6 +385,17 @@ class DebateController extends Controller
             ], 422);
         }
     
+        $user = auth('sanctum')->user(); // Retrieve the authenticated user
+
+        
+        if (!$user) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'Unauthorized Access'
+            ], 401);
+        }
+    
+
         // Find the parent debate
         $parentDebate = Debate::find($parentId);
     
@@ -326,11 +408,18 @@ class DebateController extends Controller
     
         // Add the child debate with the specified side
         $childDebate = Debate::create([
+            'user_id' => $user->id,
             'title' => $request->title,
             'side' => $side,
             'parent_id' => $parentId,
+            'voting_allowed' => $parentDebate->voting_allowed ?? false, // Inherit voting_allowed from parent debate
         ]);
     
+        // Update user comments & contributions in users table
+        $user->total_claims += 1; // Increment total claims
+        $user->total_contributions += 1; // Increment total contributions
+        $user->save();
+
         return response()->json([
             'status' => 200,
             'message' => 'Child Debate created Successfully',
@@ -398,6 +487,17 @@ class DebateController extends Controller
             ], 422);
         }
 
+        $user = auth('sanctum')->user(); // Retrieve the authenticated user
+
+        
+        if (!$user) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'Unauthorized Access'
+            ], 401);
+        }
+        
+
         $debate = Debate::find($debateId);
 
         if (!$debate) {
@@ -415,6 +515,7 @@ class DebateController extends Controller
         }
 
         $vote = new Vote([
+            'user_id' => $user->id,
             'vote' => $request->vote,
         ]);
 
@@ -422,6 +523,11 @@ class DebateController extends Controller
 
         // Increment total_votes column
         $debate->increment('total_votes');
+
+        // Update user comments & contributions in users table
+        $user->total_votes += 1; // Increment total votes
+        $user->total_contributions += 1; // Increment total contributions
+        $user->save();
 
         return response()->json([
             'status' => 200,
@@ -483,6 +589,11 @@ class DebateController extends Controller
             'debate_id' => $debateId,
             'comment' => $request->comment,
         ]);
+
+        // Update user comments & contributions in users table
+        $user->total_comments += 1; // Increment total commentss
+        $user->total_contributions += 1; // Increment total contributions
+        $user->save();
 
         return response()->json([
             'status' => 200,
@@ -575,4 +686,67 @@ class DebateController extends Controller
             'comments' => $comments,
         ], 200);
     }
+
+
+    /*** CLASS TO SEARCH DEBATE BY TAG, TITLE, THESIS ***/
+
+    public function searchDebates(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'search_query' => 'required|string|max:191',
+        ]);
+    
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 422,
+                'errors' => $validator->messages(),
+            ], 422);
+        }
+    
+        $searchQuery = $request->search_query;
+    
+        $mainDebates = Debate::whereNull('parent_id') // Only select main debates
+            ->where(function ($query) use ($searchQuery) {
+                $query->where('title', 'LIKE', '%' . $searchQuery . '%') // Use LIKE for case-insensitive search
+                    ->orWhere('thesis', 'LIKE', '%' . $searchQuery . '%')
+                    ->orWhere(function ($query) use ($searchQuery) {
+                        // Case-insensitive search within JSON array
+                        $query->where(DB::raw('JSON_UNQUOTE(tags)'), 'LIKE', '%' . $searchQuery . '%');
+                    });
+            })
+            ->get();
+    
+        if ($mainDebates->count() > 0) {
+            // Transform the main debates into a simplified structure
+            $transformedMainDebates = $mainDebates->map(function ($mainDebate) {
+                return $this->transformMainDebate($mainDebate);
+            });
+    
+            return response()->json([
+                'status' => 200,
+                'debates' => $transformedMainDebates,
+            ], 200);
+        } else {
+            return response()->json([
+                'status' => 404,
+                'message' => 'No Debates found for the specified search query',
+            ], 404);
+        }
+    }
+    
+    /*** CLASS TO GET LIST OF TOP CONTRIBUTORS IN FEATURED PAGE ***/
+
+    public function topContributors()
+    {
+        // Fetch top contributors in descending order based on total contributions
+        $topContributors = User::orderByDesc('total_contributions')
+            ->select('id', 'username', 'total_contributions')
+            ->get();
+
+        return response()->json([
+            'status' => 200,
+            'topContributors' => $topContributors,
+        ], 200);
+    }
+
 }

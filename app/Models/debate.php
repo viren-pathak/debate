@@ -12,6 +12,7 @@ class debate extends Model
     protected $table = 'debate';
 
     protected $fillable = [
+        'user_id',
         'parent_id',
         'title',
         'side',
@@ -25,6 +26,12 @@ class debate extends Model
         'voting_allowed',
         'total_votes'
     ];
+
+        public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
 
     public function children()
     {
