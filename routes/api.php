@@ -7,6 +7,7 @@ use App\Http\Controllers\DebateController;
 use App\Http\Controllers\VerificationController;
 use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\ContactController;
+use App\Http\Controllers\AdminController;
 
 /*
 |--------------------------------------------------------------------------
@@ -63,3 +64,20 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function(){
     Route::put('/comments/{commentId}/editComment', [DebateController::class, 'editComment']); // Edit Comments
     Route::delete('/comments/{commentId}/hideComment', [DebateController::class, 'hideComment']); // hide Comments
 }); 
+
+
+// Admin APIs
+Route::get('/admin/all-users', [AdminController::class, 'getAllUsers']);
+Route::get('/admin/user/{userId}', [AdminController::class, 'getUserDetails']);
+Route::delete('/admin/user/{userId}', [AdminController::class, 'deleteUser']);
+
+Route::get('/admin/all-votes', [AdminController::class, 'getAllVotes']);
+Route::delete('/admin/delete-vote/{id}', [AdminController::class, 'deleteVote']);
+
+Route::get('/admin/all-comments', [AdminController::class, 'getAllComments']);
+Route::delete('/admin/delete-comment/{id}', [AdminController::class, 'deleteComment']);
+
+Route::get('/admin/all-debates', [AdminController::class, 'getAllDebates']);
+Route::delete('/admin/delete-debate/{id}', [AdminController::class, 'deleteDebate']);
+
+Route::get('/admin/all-stats', [AdminController::class, 'getAllStats']);

@@ -19,4 +19,9 @@ class DebateComment extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function debate()
+    {
+        return $this->belongsTo(Debate::class);
+    }
 }

@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('email');
             $table->string('username')->unique();
             $table->timestamp('email_verified_at')->nullable();
+            $table->string('role')->default('user');
             $table->integer('total_claims')->default(0);
             $table->integer('total_votes')->default(0);
             $table->integer('total_comments')->default(0);

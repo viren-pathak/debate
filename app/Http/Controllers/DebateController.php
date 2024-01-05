@@ -584,8 +584,17 @@ class DebateController extends Controller
             ], 422);
         }
 
+        $user = auth('sanctum')->user(); // Retrieve the authenticated user
+
+        if (!$user) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'Unauthorized Access'
+            ], 401);
+        }
+
         $debateComment = DebateComment::create([
-            'user_id' => auth()->id(), // Assuming you have user authentication
+            'user_id' => $user->id, // Assuming you have user authentication
             'debate_id' => $debateId,
             'comment' => $request->comment,
         ]);
