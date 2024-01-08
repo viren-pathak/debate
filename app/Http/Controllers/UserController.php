@@ -14,6 +14,7 @@ use App\Http\Controllers\DebateController;
 use App\Models\Debate;
 use App\Models\Vote;
 use App\Models\DebateComment;
+use Illuminate\Support\Facades\Storage;
 
 class UserController extends Controller
 {
@@ -105,6 +106,59 @@ class UserController extends Controller
             'message' => 'The provided credentials are incorrect',
             'status' => 'failed'
         ], 401);
+    }
+
+
+/*** Function to fetch user profile details for editing. ***/
+    public function editProfile()
+    {
+        $user = auth('sanctum')->user(); // Retrieve the authenticated user
+
+        // Return response with the user's current profile details
+        return response()->json([
+            'status' => 200,
+            'user' => $user,
+        ]);
+    }
+
+
+    /*** Function to update user profile details. ***/
+
+    public function updateProfile(Request $request)
+    {
+        $user = auth('sanctum')->user(); // Retrieve the authenticated user
+
+        // Validate the request data
+        $request->validate([
+            'profile_picture' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'isProfilePrivate' => 'nullable|boolean',
+            'biography' => 'nullable|string',
+        ]);
+
+        // Update profile picture if provided
+        if ($request->hasFile('profile_picture')) {
+            // Delete existing profile picture if any
+            if ($user->profile_picture) {
+                Storage::disk('public')->delete($user->profile_picture);
+            }
+
+            $profilePicturePath = $request->file('profile_picture')->store('profile_pictures', 'public');
+            $user->profile_picture = $profilePicturePath;
+        }
+
+        // Update other profile fields if provided
+        $user->isProfilePrivate = $request->input('isProfilePrivate', $user->isProfilePrivate);
+        $user->biography = $request->input('biography', $user->biography);
+
+        // Save changes to the database
+        $user->save();
+
+        // Return response
+        return response()->json([
+            'status' => 200,
+            'message' => 'Profile updated successfully',
+            'user' => $user,
+        ]);
     }
 
 

@@ -19,6 +19,7 @@ class User extends Authenticatable implements MustVerifyEmail
      * @var array<int, string>
      */
     protected $fillable = [
+        'profile_picture',
         'name',
         'email',
         'password',
@@ -30,6 +31,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'total_comments',
         'total_contributions',
         'total_received_thanks',
+        'biography',
         'verification_token',
         'email_verified_at', 
     ];
@@ -52,6 +54,7 @@ class User extends Authenticatable implements MustVerifyEmail
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'isProfilePrivate' => 'boolean',
     ];
 
     public function thanks()

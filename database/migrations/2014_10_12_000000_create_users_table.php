@@ -14,6 +14,7 @@ return new class extends Migration
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->string('name');
+            $table->string('profile_picture')->nullable();
             $table->string('email');
             $table->string('username')->unique();
             $table->timestamp('email_verified_at')->nullable();
@@ -24,6 +25,7 @@ return new class extends Migration
             $table->integer('total_comments')->default(0);
             $table->integer('total_contributions')->default(0);
             $table->integer('total_received_thanks')->default(0);
+            $table->text('biography')->nullable();
             $table->string('password');
             $table->string('verification_token')->nullable();
             $table->rememberToken();

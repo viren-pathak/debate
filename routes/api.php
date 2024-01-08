@@ -58,6 +58,10 @@ Route::get('/user/{userId}/profile-details', [UserController::class, 'getUserPro
 Route::middleware(['auth:sanctum', 'verified'])->group(function(){
     Route::post('/logout', [UserController::class, 'logout']); // API for user logout
     Route::post('/changepassword', [UserController::class, 'change_password']); // API for changing password when user logged in
+
+    Route::get('/edit-profile', [UserController::class, 'editProfile']);    // Fetch user profile details for editing
+    Route::post('/update-profile', [UserController::class, 'updateProfile']);   // Update user profile details
+
     Route::get('/my-profile-details', [UserController::class, 'getSelfProfileDetails']); // API TO get user profile
     Route::get('/my-contributions', [UserController::class, 'getSelfContributions']); // Api for getting number of user contributions
     Route::get('/my-activity', [UserController::class, 'getSelfActivity']);
