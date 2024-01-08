@@ -52,13 +52,15 @@ Route::get('/debates/{debateId}/commentsList', [DebateController::class, 'getCom
 Route::post('/debates/{parentId}/addProsChildDebate', [DebateController::class, 'addProsChildDebate']); // Add pros to debate
 Route::post('/debates/{parentId}/addConsChildDebate', [DebateController::class, 'addConsChildDebate']); // Add Cons to debate
 
+Route::get('/user/{userId}/profile-details', [UserController::class, 'getUserProfileDetails']); // Get User details by user ID
+
 // Protetcted Routes (user Authentication needed for these APIs)
 Route::middleware(['auth:sanctum', 'verified'])->group(function(){
     Route::post('/logout', [UserController::class, 'logout']); // API for user logout
     Route::post('/changepassword', [UserController::class, 'change_password']); // API for changing password when user logged in
-    Route::get('/user-profile-details', [UserController::class, 'userProfileDetails']); // API TO get user profile
-    Route::get('/user-contributions', [UserController::class, 'userContributions']); // Api for getting number of user contributions
-    Route::get('/user-activity', [UserController::class, 'getUserActivity']);
+    Route::get('/my-profile-details', [UserController::class, 'getSelfProfileDetails']); // API TO get user profile
+    Route::get('/my-contributions', [UserController::class, 'getSelfContributions']); // Api for getting number of user contributions
+    Route::get('/my-activity', [UserController::class, 'getSelfActivity']);
 
     Route::post('/debates/{debateId}/addComments', [DebateController::class, 'addComment']); // Add Comments
     Route::put('/comments/{commentId}/editComment', [DebateController::class, 'editComment']); // Edit Comments

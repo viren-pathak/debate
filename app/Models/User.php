@@ -24,6 +24,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'password',
         'username',
         'role',
+        'isProfilePrivate',
         'total_claims',
         'total_votes',
         'total_comments',

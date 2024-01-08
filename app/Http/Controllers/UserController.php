@@ -121,9 +121,9 @@ class UserController extends Controller
     }
 
 
-    /*** Function to get USER Profile Details ***/
+    /*** Function to get SELF Profile Details DATA ***/
 
-    public function userProfileDetails(Request $request){
+    public function getSelfProfileDetails(Request $request){
         $loggedUser = auth()->user(); // Retrieve the authenticated user
 
         // Check if the user is logged in
@@ -146,9 +146,9 @@ class UserController extends Controller
 
 
 
-    /*** FUNCTION TO GET NUMBERS OF USER CONTRIBUTIONS ***/
+    /*** FUNCTION TO GET NUMBERS OF SELF CONTRIBUTIONS DATA ***/
 
-    public function userContributions(Request $request)
+    public function getSelfContributions(Request $request)
     {
         $user = $request->user();
 
@@ -189,9 +189,9 @@ class UserController extends Controller
     }
 
 
-    /*** FUNCTIOON TO GET USER ACTIVITY  ***/
+    /*** FUNCTION TO GET SELF ACTIVITY DATA  ***/
     
-    public function getUserActivity(Request $request)
+    public function getSelfActivity(Request $request)
     {
         $user = $request->user();
 
@@ -269,6 +269,102 @@ class UserController extends Controller
     }
 
 
+
+    /*** FUNCTION TO GET USER DETAILS BY USER ID ***/
+
+    public function getUserProfileDetails(Request $request, int $userId)
+    {
+        $user = User::find($userId);
+
+        if (!$user) {
+            return response()->json([
+                'status' => 404,
+                'message' => 'User not found!',
+            ], 404);
+        }
+
+        // Fetch user contributions
+        $totalClaims = Debate::where('user_id', $user->id)
+            ->orWhere('side', 'pros')
+            ->orWhereNotNull('parent_id')
+            ->count();
+
+        $totalVotes = Vote::whereHas('debate', function ($query) use ($user) {
+            $query->where('user_id', $user->id);
+        })->count();
+
+        $totalComments = DebateComment::where('user_id', $user->id)->count();
+
+        $totalContributions = $totalClaims + $totalVotes + $totalComments;
+
+        // Fetch user activities
+        $debates = Debate::where('user_id', $user->id)
+            ->orWhereHas('pros', function ($query) use ($user) {
+                $query->where('user_id', $user->id);
+            })
+            ->orWhereHas('cons', function ($query) use ($user) {
+                $query->where('user_id', $user->id);
+            })
+            ->get();
+
+        $comments = DebateComment::where('user_id', $user->id)->get();
+
+        $votes = Vote::where('user_id', $user->id)->get();
+
+        $activities = collect([])
+            ->merge($debates->map(function ($debate) {
+                return [
+                    'type' => 'debate',
+                    'id' => $debate->parent_id ?? $debate->id,
+                    'title' => $debate->parent_id ? Debate::find($debate->parent_id)->title : $debate->title,
+                    'created_at' => $debate->created_at,
+                ];
+            }))
+            ->merge($comments->map(function ($comment) {
+                $debateId = $comment->debate->parent_id ?? $comment->debate_id;
+                $parentDebate = Debate::where('id', $debateId)->first();
+
+                return [
+                    'type' => 'comment',
+                    'id' => $parentDebate->parent_id ?? $debateId,
+                    'title' => $parentDebate->title,
+                    'created_at' => $comment->created_at,
+                ];
+            }))
+            ->merge($votes->map(function ($vote) {
+                $debateId = $vote->debate->parent_id ?? $vote->debate_id;
+                $parentDebate = Debate::where('id', $debateId)->first();
+
+                return [
+                    'type' => 'vote',
+                    'id' => $parentDebate->parent_id ?? $debateId,
+                    'title' => $parentDebate->title,
+                    'created_at' => $vote->created_at,
+                ];
+            }));
+
+        $groupedActivities = $activities->groupBy('id');
+        $filteredActivities = $groupedActivities->map(function ($group) {
+            return $group->sortByDesc('created_at')->first();
+        });
+        $sortedActivities = $filteredActivities->sortByDesc('created_at')->values()->all();
+
+        return response()->json([
+            'status' => 200,
+            'user_id' => $user->id,
+            'username' => $user->username,
+            'created_at' => $user->created_at->toDateTimeString(),
+            'total_received_thanks' => $user->total_received_thanks,
+            'userContributions' => [
+                'totalClaims' => $totalClaims,
+                'totalVotes' => $totalVotes,
+                'totalComments' => $totalComments,
+                'totalContributions' => $totalContributions,
+            ],
+            'activity' => $sortedActivities,
+        ], 200);
+    }
+    
 
     /*** Function to change the password when USER is logged in  ***/
 
