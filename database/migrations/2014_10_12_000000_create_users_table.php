@@ -22,6 +22,7 @@ return new class extends Migration
             $table->integer('total_votes')->default(0);
             $table->integer('total_comments')->default(0);
             $table->integer('total_contributions')->default(0);
+            $table->integer('total_received_thanks')->default(0);
             $table->string('password');
             $table->string('verification_token')->nullable();
             $table->rememberToken();

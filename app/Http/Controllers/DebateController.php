@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Debate;
 use App\Models\Vote;
 use App\Models\User;
+use App\Models\Thanks;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
@@ -12,7 +13,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
 use App\FileUploadService;
 use App\Models\DebateComment;
-
+use Illuminate\Support\Facades\Auth;
 
 
 class DebateController extends Controller
@@ -693,6 +694,64 @@ class DebateController extends Controller
         return response()->json([
             'status' => 200,
             'comments' => $comments,
+        ], 200);
+    }
+
+
+    /*** CLASS TO ADD THANKS TO AUTHOR IN DEBATE  ***/
+
+    public function giveThanks(Request $request, int $debateId)
+    {
+        $user = auth('sanctum')->user(); // Retrieve the authenticated user
+
+        if (!$user) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'Unauthorized Access'
+            ], 401);
+        }
+    
+        $debate = Debate::find($debateId);
+
+        if (!$debate) {
+            return response()->json([
+                'status' => 404,
+                'message' => 'Debate not found!',
+            ], 404);
+        }
+
+        $debateOwner = $debate->user;
+    
+        // Check if the user has already given thanks
+        $hasThanks = Thanks::where('user_id', $user->id)
+            ->where('debate_id', $debate->id)
+            ->exists();
+    
+        if ($hasThanks) {
+            // Remove thanks
+            Thanks::where('user_id', $user->id)
+                ->where('debate_id', $debate->id)
+                ->delete();
+    
+            // Decrement total_received_thanks
+            $debateOwner->decrement('total_received_thanks');
+            $message = 'Thanks removed successfully.';
+        } else {
+            // Add thanks
+            Thanks::create([
+                'user_id' => $user->id,
+                'debate_id' => $debate->id,
+            ]);
+    
+            // Increment total_received_thanks
+            $debateOwner->increment('total_received_thanks');
+            $message = 'Thanks recorded successfully.';
+        }
+    
+        return response()->json([
+            'status' => 200,
+            'message' => $message,
+            'total_received_thanks' => $debateOwner->total_received_thanks,
         ], 200);
     }
 

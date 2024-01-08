@@ -63,6 +63,8 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function(){
     Route::post('/debates/{debateId}/addComments', [DebateController::class, 'addComment']); // Add Comments
     Route::put('/comments/{commentId}/editComment', [DebateController::class, 'editComment']); // Edit Comments
     Route::delete('/comments/{commentId}/hideComment', [DebateController::class, 'hideComment']); // hide Comments
+
+    Route::post('/debates/{debateId}/thanks', [DebateController::class, 'giveThanks']); // Thank author of the debate
 }); 
 
 

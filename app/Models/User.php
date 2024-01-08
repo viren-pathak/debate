@@ -28,6 +28,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'total_votes',
         'total_comments',
         'total_contributions',
+        'total_received_thanks',
         'verification_token',
         'email_verified_at', 
     ];
@@ -51,5 +52,10 @@ class User extends Authenticatable implements MustVerifyEmail
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
     ];
+
+    public function thanks()
+    {
+        return $this->hasMany(Thanks::class);
+    }
 
 }

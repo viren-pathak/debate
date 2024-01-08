@@ -139,6 +139,7 @@ class UserController extends Controller
             'status' => 200,
             'username' => $loggedUser->username,
             'created_at' => $loggedUser->created_at->toDateTimeString(), // Format the creation time
+            'total_received_thanks' => $loggedUser->total_received_thanks,
             'message' => 'User Profile Details',
         ], 200);
     }
