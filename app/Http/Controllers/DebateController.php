@@ -6,6 +6,7 @@ use App\Models\Debate;
 use App\Models\Vote;
 use App\Models\User;
 use App\Models\Thanks;
+use App\Models\Tag;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
@@ -78,13 +79,19 @@ class DebateController extends Controller
             $filePath = FileUploadService::upload($file, 'debate_images');
         }
 
-        $tagsArray = explode(',', $request->tags); // Convert tags to an array
+        $tagsArray = !empty($request->tags) ? explode(',', $request->tags) : null; // Convert tags to an array or set to null if not provided
+
+        if (!empty($tagsArray)) {
+            foreach ($tagsArray as $tag) {
+                $this->addTagIfNotExists($tag);
+            }
+        }
 
         $storevar = debate::create([
             'user_id' => $user->id,
             'title' => $request->title,
             'thesis' => $request->thesis,
-            'tags' => json_encode($tagsArray), // Convert the array to a JSON string before storing
+            'tags' => !empty($tagsArray) ? json_encode($tagsArray) : null,
             'backgroundinfo' => $request->backgroundinfo,
             'image' => $filePath,
             'imgname' => $filePath ? pathinfo($filePath, PATHINFO_FILENAME) : null,
@@ -108,6 +115,17 @@ class DebateController extends Controller
                 'status' => 500,
                 'message' => "OOPS! Something went wrong!",
             ], 500);
+        }
+    }
+
+    // Method to check if the tag exists in the tags table and create it if not
+
+    private function addTagIfNotExists($tag)
+    {
+        $existingTag = Tag::where('tag', $tag)->first();
+
+        if (!$existingTag) {
+            Tag::create(['tag' => $tag]);
         }
     }
 
@@ -153,15 +171,21 @@ class DebateController extends Controller
 
     public function getAllTags()
     {
-        $tags = Debate::all()->pluck('tags')->flatMap(function ($tags) {
-            return json_decode($tags);
-        })->unique();
-
+        $tags = Tag::all();
+    
+        $transformedTags = $tags->map(function ($tag) {
+            return [
+                'name' => $tag->tag,
+                'image' => $tag->image ? asset('storage/' . $tag->image) : null,
+            ];
+        });
+    
         return response()->json([
             'status' => 200,
-            'tags' => $tags,
+            'tags' => $transformedTags,
         ], 200);
     }
+    
 
     /** CLASS TO FETCH DEBATES BY TAG **/
 
@@ -289,13 +313,19 @@ class DebateController extends Controller
                     $filePath = FileUploadService::upload($file, 'debate_images');
                 }
         
-                // Convert tags to an array
-                $tagsArray = explode(',', $request->tags);
-        
+                // Convert tags to an array or set to null if not provided
+                $tagsArray = !empty($request->tags) ? explode(',', $request->tags) : null; 
+
+                if (!empty($tagsArray)) {
+                    foreach ($tagsArray as $tag) {
+                        $this->addTagIfNotExists($tag);
+                    }
+                }
+                
                 $storevar->update([
                     'title' => $request->title,
                     'thesis' => $request->thesis,
-                    'tags' => json_encode($tagsArray),
+                    'tags' => !empty($tagsArray) ? json_encode($tagsArray) : null,
                     'backgroundinfo' => $request->backgroundinfo,
                     'image' => $filePath,
                     'imgname' => $filePath ? pathinfo($filePath, PATHINFO_FILENAME) : null,

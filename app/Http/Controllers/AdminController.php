@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\Debate;
 use App\Models\Vote;
+use App\Models\Tag;
+use Illuminate\Support\Facades\Validator;
+use App\FileUploadService;
 use App\Models\DebateComment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -270,5 +273,51 @@ class AdminController extends Controller
             'overallContributions' => $overallContributions,
         ], 200);
     }
+
+
+    /*** FUNCTION TO ADD TAGS in database ***/
+    public function addTag(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'tag' => 'required|string|max:191',
+            'image' => 'nullable|file|mimes:jpeg,png,jpg,gif|max:2048',
+        ]);
+    
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 422,
+                'errors' => $validator->messages(),
+            ], 422);
+        }
+    
+        $tag = Tag::whereRaw('LOWER(`tag`) = ?', [strtolower($request->tag)])->first(); // Case-insensitive check
+    
+        if ($tag) {
+            // Tag already exists, return it without creating a new one
+            return response()->json([
+                'status' => 200,
+                'message' => 'Tag already exists',
+                'tag' => $tag,
+            ], 200);
+        }
+    
+        $imagePath = null;
+        if ($request->hasFile('image')) {
+            $image = $request->file('image');
+            $imagePath = FileUploadService::upload($image, 'tag_images');
+        }
+    
+        $tag = Tag::create([
+            'tag' => $request->tag,
+            'image' => $imagePath,
+        ]);
+    
+        return response()->json([
+            'status' => 200,
+            'message' => 'Tag created successfully',
+            'tag' => $tag,
+        ], 200);
+    }
+    
 
 }

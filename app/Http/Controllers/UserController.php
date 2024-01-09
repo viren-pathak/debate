@@ -109,7 +109,8 @@ class UserController extends Controller
     }
 
 
-/*** Function to fetch user profile details for editing. ***/
+    /*** Function to fetch user profile details for editing. ***/
+    
     public function editProfile()
     {
         $user = auth('sanctum')->user(); // Retrieve the authenticated user

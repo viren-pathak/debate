@@ -89,3 +89,5 @@ Route::get('/admin/all-debates', [AdminController::class, 'getAllDebates']);
 Route::delete('/admin/delete-debate/{id}', [AdminController::class, 'deleteDebate']);
 
 Route::get('/admin/all-stats', [AdminController::class, 'getAllStats']);
+
+Route::post('/admin/add-tag', [AdminController::class, 'addTag']);
