@@ -7,6 +7,7 @@ use App\Models\Vote;
 use App\Models\User;
 use App\Models\Thanks;
 use App\Models\Tag;
+use App\Models\Bookmark;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
@@ -873,6 +874,97 @@ class DebateController extends Controller
             'overallClaims' => $overallClaims,
         ], 200);
     }
+    
+
+    /*** CLASS TO BOOKMARK ON DEBATES ***/
+
+    public function toggleBookmark(Request $request, int $debateId)
+    {
+        $user = auth('sanctum')->user();
+
+        if (!$user) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'Unauthorized Access'
+            ], 401);
+        }
+
+        $debate = Debate::find($debateId);
+
+        if (!$debate) {
+            return response()->json([
+                'status' => 404,
+                'message' => 'Debate not found',
+            ], 404);
+        }
+
+        $bookmark = Bookmark::where('user_id', $user->id)
+                            ->where('debate_id', $debateId)
+                            ->first();
+
+        if ($bookmark) {
+            // Debate already bookmarked, remove bookmark
+            $bookmark->delete();
+
+            return response()->json([
+                'status' => 200,
+                'message' => 'Debate removed from bookmarks',
+            ], 200);
+        } else {
+            // Bookmark the debate
+            Bookmark::create([
+                'user_id' => $user->id,
+                'debate_id' => $debateId,
+            ]);
+
+            return response()->json([
+                'status' => 200,
+                'message' => 'Debate bookmarked successfully',
+            ], 200);
+        }
+    }
+
+
+    /*** CLASS TO GET LIST OF BOOKMARKED DEBATES ***/
+
+    public function getBookmarkedDebates(Request $request, $debateId)
+    {
+        $user = $request->user();
+    
+        if (!$user) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'Unauthorized Access'
+            ], 401);
+        }
+    
+        // Helper method to retrieve bookmarked debates within a hierarchy
+        $getBookmarkedDebatesRecursive = function ($debateId) use (&$getBookmarkedDebatesRecursive, $user) {
+            $debate = Debate::find($debateId);
+    
+            if (!$debate) {
+                return collect(); // Return an empty collection if the debate is not found
+            }
+    
+            $bookmarkedDebates = $user->bookmarkedDebates()->where('debate_id', $debateId)->get();
+    
+            foreach ($debate->children as $child) {
+                $bookmarkedDebates = $bookmarkedDebates->merge($getBookmarkedDebatesRecursive($child->id));
+            }
+    
+            return $bookmarkedDebates;
+        };
+    
+        // Get bookmarked debates within the hierarchy
+        $bookmarkedDebates = $getBookmarkedDebatesRecursive($debateId);
+    
+        return response()->json([
+            'status' => 200,
+            'bookmarkedDebates' => $bookmarkedDebates,
+        ], 200);
+    }
+    
+
     
 
 }

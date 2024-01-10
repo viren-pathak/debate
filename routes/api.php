@@ -71,6 +71,9 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function(){
     Route::delete('/comments/{commentId}/hideComment', [DebateController::class, 'hideComment']); // hide Comments
 
     Route::post('/debates/{debateId}/thanks', [DebateController::class, 'giveThanks']); // Thank author of the debate
+
+    Route::post('/debates/{debateId}/add-bookmark', [DebateController::class, 'toggleBookmark']);
+    Route::get('/debates/{debateId}/my-bookmarks', [DebateController::class, 'getBookmarkedDebates']);
 }); 
 
 

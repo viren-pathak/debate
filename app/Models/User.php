@@ -62,4 +62,9 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(Thanks::class);
     }
 
+    public function bookmarkedDebates()
+    {
+        return $this->belongsToMany(Debate::class, 'bookmarks')->withTimestamps();
+    }
+
 }
