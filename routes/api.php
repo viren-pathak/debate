@@ -31,9 +31,8 @@ Route::post('/contact-form', [ContactController::class, 'sendMail'])->name('addC
 
 Route::get('showalldebate', [DebateController::class, 'getalldebates']);//show all the debates  
 Route::post('createdebate', [DebateController::class, 'storetodb']);//create debates
-Route::post('getdebatebyid/{id}', [DebateController::class, 'getbyid']);//get debate by id
 Route::get('getdebatebyid/{id}/editdebate', [DebateController::class, 'editdebateindb']);//edit the debate
-Route::put('getdebatebyid/{id}/editdebate', [DebateController::class, 'updatedebate']);//update debate
+Route::put('getdebatebyid/{id}/updatedebate', [DebateController::class, 'updatedebate']);//update debate
 Route::delete('getdebatebyid/{id}/deletedebate', [DebateController::class, 'destroydebate']);//delete debate
 Route::put('getdebatebyid/{id}/imageupload', [DebateController::class, 'debateimageupload']);// upload images
 Route::get('/debates/tags', [DebateController::class, 'getAllTags']);//display all tags

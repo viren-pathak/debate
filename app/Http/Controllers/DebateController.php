@@ -131,42 +131,6 @@ class DebateController extends Controller
     }
 
 
-    /** CLASS TO GET DEBATE BY ID ***/
-
-    public function getbyid($id)
-    {
-        $user = auth('sanctum')->user(); // Retrieve the authenticated user
-
-        if (!$user) {
-            return response()->json([
-                'status' => 401,
-                'message' => 'You are not authorized'
-            ], 401);
-        }
-
-        $findbyidvar = Debate::find($id);
-    
-        if (!$findbyidvar) {
-            return response()->json([
-                'status' => 404,
-                'message' => "No Such Topic Found!"
-            ], 404);
-        }
-    
-        // Check if the authenticated user is the owner of the debate
-        if ($user->id !== $findbyidvar->user_id) {
-            return response()->json([
-                'status' => 403,
-                'message' => "You do not have permission to edit this debate."
-            ], 403);
-        }
-    
-        return response()->json([
-            'status' => 200,
-            'Debate' => $findbyidvar
-        ], 200);
-    }
-
 
     /** CLASS TO FETCH ALL TAGS **/
 
