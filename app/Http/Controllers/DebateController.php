@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Storage;
 use App\FileUploadService;
 use App\Models\DebateComment;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Collection;
 
 
 class DebateController extends Controller
@@ -929,6 +930,144 @@ class DebateController extends Controller
     }
     
 
+    /*** CLASS TO GET LIST OF MY CLAIMS OF SPECIFIC DEBATE ***/
+
+    public function getClaimsByDebate(Request $request, $debateId)
+    {
+        $user = $request->user();
+    
+        if (!$user) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'Unauthorized Access'
+            ], 401);
+        }
+    
+        // Helper method to retrieve claims within a hierarchy
+        $getClaimsRecursive = function ($debateId) use (&$getClaimsRecursive, $user) {
+            $debate = Debate::find($debateId);
+    
+            if (!$debate) {
+                return collect(); // Return an empty collection if the debate is not found
+            }
+    
+            $claims = $debate->children()->where('user_id', $user->id)->get();
+    
+            foreach ($debate->children as $child) {
+                $claims = $claims->merge($getClaimsRecursive($child->id));
+            }
+    
+            return $claims;
+        };
+    
+        // Get claims within the hierarchy
+        $userClaims = $getClaimsRecursive($debateId);
+    
+        // Include the parent debate in the result
+        $parentDebate = Debate::find($debateId);
+        if ($parentDebate && $parentDebate->user_id == $user->id) {
+            $userClaims->push($parentDebate);
+        }
+    
+        // Sort the collection by created_at in descending order (newer first)
+        $userClaims = $userClaims->sortByDesc('created_at')->values()->all();
+    
+        return response()->json([
+            'status' => 200,
+            'userClaims' => $userClaims,
+        ], 200);
+    }
     
 
+    /*** CLASS TO GET LIST OF CONTRIBUTIONS ON SPECIFIC DEBATE ***/
+
+    public function getContributionsRecursive($debateId) 
+    {
+        $debate = Debate::find($debateId);
+
+        if (!$debate) {
+            return collect(); // Return an empty collection if the debate is not found
+        }
+
+        // Get user's contributions for this debate
+        $contributions = [];
+
+        // Get user's comments for this debate
+        $comments = $debate->comments()
+            ->where('user_id', auth('sanctum')->id()) // Assuming you have user authentication
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        foreach ($comments as $comment) {
+            $comment->type = 'comment';
+            array_unshift($contributions, $comment); // Add at the beginning of the array
+        }
+
+        // Get user's votes for this debate
+        $votes = $debate->votes()
+            ->where('user_id', auth('sanctum')->id()) // Assuming you have user authentication
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        foreach ($votes as $vote) {
+            $vote->type = 'vote';
+            array_unshift($contributions, $vote); // Add at the beginning of the array
+        }
+
+        // Get user's claims for this debate
+        $claims = $debate->children()
+            ->where('user_id', auth('sanctum')->id()) // Assuming you have user authentication
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        foreach ($claims as $claim) {
+            $claim->type = 'claim';
+            array_unshift($contributions, $claim); // Add at the beginning of the array
+        }
+
+        // Get user's bookmark for this debate
+        $bookmarked = auth('sanctum')->user()->bookmarkedDebates()
+            ->where('debate_id', $debateId)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        foreach ($bookmarked as $bookmark) {
+            $bookmark->type = 'bookmark';
+            array_unshift($contributions, $bookmark); // Add at the beginning of the array
+        }
+
+        // Recursively get contributions for child debates
+        foreach ($debate->children as $child) {
+            $childContributions = $this->getContributionsRecursive($child->id);
+            $contributions = array_merge($contributions, $childContributions);
+        }
+
+        // Sort all contributions by time in descending order
+        usort($contributions, function ($a, $b) {
+            return strtotime($b->created_at) - strtotime($a->created_at);
+        });
+
+        return $contributions;
+    }
+
+
+    /*** CLASS TO GET LIST OF COMMENTS IN SPECIFIC DEBATE ***/
+
+    public function getCommentsByDebate($debateId)
+    {
+        $userId = auth('sanctum')->id(); // Assuming you have user authentication
+
+        $userSpecificComments = DebateComment::whereHas('debate', function ($query) use ($userId, $debateId) {
+            $query->where('id', $debateId)
+                ->orWhereHas('parent', function ($query) use ($debateId) {
+                    $query->where('id', $debateId);
+                });
+        })->where('user_id', $userId)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json([
+            'userSpecificComments' => $userSpecificComments,
+        ]);
+    }
 }

@@ -71,8 +71,16 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function(){
 
     Route::post('/debates/{debateId}/thanks', [DebateController::class, 'giveThanks']); // Thank author of the debate
 
-    Route::post('/debates/{debateId}/add-bookmark', [DebateController::class, 'toggleBookmark']);
-    Route::get('/debates/{debateId}/my-bookmarks', [DebateController::class, 'getBookmarkedDebates']);
+    Route::post('/debates/{debateId}/add-bookmark', [DebateController::class, 'toggleBookmark']); // Add debate to bookmark
+    Route::get('/debates/{debateId}/my-bookmarks', [DebateController::class, 'getBookmarkedDebates']); // Get list of bookmarks by debate ID
+
+    Route::get('/debates/{debateId}/my-claims', [DebateController::class, 'getClaimsByDebate']); // Get list of claims by Debate ID
+
+    
+    Route::get('/debates/{debateId}/my-contributions', [DebateController::class, 'getContributionsRecursive']); // Get list of contributions by Debate ID
+
+    Route::get('/debates/{debateId}/my-comments', [DebateController::class, 'getCommentsByDebate']); // Get list of contributions by Debate ID
+
 }); 
 
 
