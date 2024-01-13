@@ -192,6 +192,7 @@ class UserController extends Controller
         // Response for displaying user profile details
         return response()->json([
             'status' => 200,
+            'profile_picture' => $loggedUser->profile_picture,
             'username' => $loggedUser->username,
             'created_at' => $loggedUser->created_at->toDateTimeString(), // Format the creation time
             'total_received_thanks' => $loggedUser->total_received_thanks,
@@ -280,6 +281,7 @@ class UserController extends Controller
                     'type' => 'debate',
                     'id' => $debate->parent_id ?? $debate->id,
                     'title' => $debate->parent_id ? Debate::find($debate->parent_id)->title : $debate->title,
+                    'profile_picture' => $debate->profile_picture,
                     'created_at' => $debate->created_at,
                 ];
             }))
@@ -291,6 +293,7 @@ class UserController extends Controller
                     'type' => 'comment',
                     'id' => $parentDebate->parent_id ?? $debateId,
                     'title' => $parentDebate->title,
+                    'profile_picture' => $parentDebate->profile_picture,
                     'created_at' => $comment->created_at,
                 ];
             }))
@@ -302,6 +305,7 @@ class UserController extends Controller
                     'type' => 'vote',
                     'id' => $parentDebate->parent_id ?? $debateId,
                     'title' => $parentDebate->title,
+                    'profile_picture' => $parentDebate->profile_picture,
                     'created_at' => $vote->created_at,
                 ];
             }));
