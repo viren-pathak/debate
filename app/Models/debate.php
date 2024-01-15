@@ -14,6 +14,7 @@ class debate extends Model
     protected $fillable = [
         'user_id',
         'parent_id',
+        'root_id',
         'title',
         'side',
         'thesis',

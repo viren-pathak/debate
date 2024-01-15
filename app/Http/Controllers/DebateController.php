@@ -402,6 +402,9 @@ class DebateController extends Controller
                 'message' => "Parent Debate not found!"
             ], 404);
         }
+
+        // Determine the root_id for the child debate
+        $rootId = $parentDebate->root_id ?? $parentId;
     
         // Add the child debate with the specified side
         $childDebate = Debate::create([
@@ -409,6 +412,7 @@ class DebateController extends Controller
             'title' => $request->title,
             'side' => $side,
             'parent_id' => $parentId,
+            'root_id' => $rootId,
             'voting_allowed' => $parentDebate->voting_allowed ?? false, // Inherit voting_allowed from parent debate
         ]);
     

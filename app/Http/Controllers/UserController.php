@@ -281,7 +281,7 @@ class UserController extends Controller
                     'type' => 'debate',
                     'id' => $debate->parent_id ?? $debate->id,
                     'title' => $debate->parent_id ? Debate::find($debate->parent_id)->title : $debate->title,
-                    'profile_picture' => $debate->profile_picture,
+                    'image' => $debate->parent_id ? Debate::find($debate->parent_id)->image : $debate->image,
                     'created_at' => $debate->created_at,
                 ];
             }))
@@ -293,7 +293,7 @@ class UserController extends Controller
                     'type' => 'comment',
                     'id' => $parentDebate->parent_id ?? $debateId,
                     'title' => $parentDebate->title,
-                    'profile_picture' => $parentDebate->profile_picture,
+                    'image' => $parentDebate->image,
                     'created_at' => $comment->created_at,
                 ];
             }))
@@ -305,7 +305,7 @@ class UserController extends Controller
                     'type' => 'vote',
                     'id' => $parentDebate->parent_id ?? $debateId,
                     'title' => $parentDebate->title,
-                    'profile_picture' => $parentDebate->profile_picture,
+                    'image' => $parentDebate->image,
                     'created_at' => $vote->created_at,
                 ];
             }));
@@ -376,6 +376,7 @@ class UserController extends Controller
                     'type' => 'debate',
                     'id' => $debate->parent_id ?? $debate->id,
                     'title' => $debate->parent_id ? Debate::find($debate->parent_id)->title : $debate->title,
+                    'image' => $debate->parent_id ? Debate::find($debate->parent_id)->image : $debate->image,
                     'created_at' => $debate->created_at,
                 ];
             }))
@@ -387,6 +388,7 @@ class UserController extends Controller
                     'type' => 'comment',
                     'id' => $parentDebate->parent_id ?? $debateId,
                     'title' => $parentDebate->title,
+                    'image' => $parentDebate->image,
                     'created_at' => $comment->created_at,
                 ];
             }))
@@ -398,6 +400,7 @@ class UserController extends Controller
                     'type' => 'vote',
                     'id' => $parentDebate->parent_id ?? $debateId,
                     'title' => $parentDebate->title,
+                    'image' => $parentDebate->image,
                     'created_at' => $vote->created_at,
                 ];
             }));
