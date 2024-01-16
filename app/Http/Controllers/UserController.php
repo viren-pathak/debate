@@ -250,14 +250,14 @@ class UserController extends Controller
     public function getSelfActivity(Request $request)
     {
         $user = $request->user();
-
+    
         if (!$user) {
             return response()->json([
                 'status' => 401,
                 'message' => 'Unauthorized Access'
             ], 401);
         }
-
+    
         // Get all debates created or participated by the user
         $debates = Debate::where('user_id', $user->id)
             ->orWhereHas('pros', function ($query) use ($user) {
@@ -267,66 +267,66 @@ class UserController extends Controller
                 $query->where('user_id', $user->id);
             })
             ->get();
-
+    
         // Get comments made by the user
         $comments = DebateComment::where('user_id', $user->id)->get();
-
+    
         // Get votes given by the user
         $votes = Vote::where('user_id', $user->id)->get();
-
+    
         // Combine all activities
         $activities = collect([])
             ->merge($debates->map(function ($debate) {
                 return [
                     'type' => 'debate',
-                    'id' => $debate->parent_id ?? $debate->id,
-                    'title' => $debate->parent_id ? Debate::find($debate->parent_id)->title : $debate->title,
-                    'image' => $debate->parent_id ? Debate::find($debate->parent_id)->image : $debate->image,
+                    'id' => $debate->root_id ?? $debate->id, // Use root_id instead of parent_id
+                    'title' => $debate->root_id ? Debate::find($debate->root_id)->title : $debate->title,
+                    'image' => $debate->root_id ? Debate::find($debate->root_id)->image : $debate->image,
                     'created_at' => $debate->created_at,
                 ];
             }))
             ->merge($comments->map(function ($comment) {
-                $debateId = $comment->debate->parent_id ?? $comment->debate_id;
-                $parentDebate = Debate::where('id', $debateId)->first();
-
+                $debateId = $comment->debate->root_id ?? $comment->debate_id; // Use root_id instead of parent_id
+                $rootDebate = Debate::where('id', $debateId)->first();
+    
                 return [
                     'type' => 'comment',
-                    'id' => $parentDebate->parent_id ?? $debateId,
-                    'title' => $parentDebate->title,
-                    'image' => $parentDebate->image,
+                    'id' => $rootDebate->root_id ?? $debateId,
+                    'title' => $rootDebate->title,
+                    'image' => $rootDebate->image,
                     'created_at' => $comment->created_at,
                 ];
             }))
             ->merge($votes->map(function ($vote) {
-                $debateId = $vote->debate->parent_id ?? $vote->debate_id;
-                $parentDebate = Debate::where('id', $debateId)->first();
-
+                $debateId = $vote->debate->root_id ?? $vote->debate_id; // Use root_id instead of parent_id
+                $rootDebate = Debate::where('id', $debateId)->first();
+    
                 return [
                     'type' => 'vote',
-                    'id' => $parentDebate->parent_id ?? $debateId,
-                    'title' => $parentDebate->title,
-                    'image' => $parentDebate->image,
+                    'id' => $rootDebate->root_id ?? $debateId,
+                    'title' => $rootDebate->title,
+                    'image' => $rootDebate->image,
                     'created_at' => $vote->created_at,
                 ];
             }));
-
+    
         // Group activities by debate ID
         $groupedActivities = $activities->groupBy('id');
-
+    
         // Keep only the entry with the latest timestamp for each debate ID within the same month
         $filteredActivities = $groupedActivities->map(function ($group) {
             return $group->sortByDesc('created_at')->first();
         });
-
+    
         // Sort the final activities by created_at in descending order
         $sortedActivities = $filteredActivities->sortByDesc('created_at');
-
+    
         return response()->json([
             'status' => 200,
             'activity' => $sortedActivities->values()->all(),
         ], 200);
     }
-
+    
 
 
     /*** FUNCTION TO GET USER DETAILS BY USER ID ***/

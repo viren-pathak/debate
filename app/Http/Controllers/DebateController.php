@@ -894,88 +894,92 @@ class DebateController extends Controller
     }
 
 
-    /*** CLASS TO GET LIST OF BOOKMARKED DEBATES ***/
+   /*** CLASS TO GET LIST OF MY BOOKMARKED DEBATES OF SPECIFIC DEBATE ***/
 
-    public function getBookmarkedDebates(Request $request, $debateId)
-    {
-        $user = $request->user();
-    
-        if (!$user) {
-            return response()->json([
-                'status' => 401,
-                'message' => 'Unauthorized Access'
-            ], 401);
-        }
-    
-        // Helper method to retrieve bookmarked debates within a hierarchy
-        $getBookmarkedDebatesRecursive = function ($debateId) use (&$getBookmarkedDebatesRecursive, $user) {
-            $debate = Debate::find($debateId);
-    
-            if (!$debate) {
-                return collect(); // Return an empty collection if the debate is not found
-            }
-    
-            $bookmarkedDebates = $user->bookmarkedDebates()->where('debate_id', $debateId)->get();
-    
-            foreach ($debate->children as $child) {
-                $bookmarkedDebates = $bookmarkedDebates->merge($getBookmarkedDebatesRecursive($child->id));
-            }
-    
-            return $bookmarkedDebates;
-        };
-    
-        // Get bookmarked debates within the hierarchy
-        $bookmarkedDebates = $getBookmarkedDebatesRecursive($debateId);
-    
-        return response()->json([
-            'status' => 200,
-            'bookmarkedDebates' => $bookmarkedDebates,
-        ], 200);
-    }
-    
+   public function getBookmarkedDebates(Request $request, $debateId)
+   {
+       $user = $request->user(); // Get the authenticated user directly from the token
+   
+       if (!$user) {
+           return response()->json([
+               'status' => 401,
+               'message' => 'Unauthorized Access'
+           ], 401);
+       }
+   
+       // Find the debate by ID
+       $debate = Debate::find($debateId);
+   
+       if (!$debate) {
+           return response()->json([
+               'status' => 404,
+               'message' => 'Debate not found',
+           ], 404);
+       }
+   
+       // Find the root debate ID
+       $rootId = $debate->root_id ?? $debateId;
+   
+       // Retrieve all bookmarks within the hierarchy starting from the root debate
+       $bookmarkedDebates = $user->bookmarkedDebates()
+           ->where('root_id', $rootId)
+           ->orWhereNull('root_id') // Include debates with null root_id
+           ->get();
+   
+       return response()->json([
+           'status' => 200,
+           'bookmarkedDebates' => $bookmarkedDebates,
+       ], 200);
+   }
+   
+   
+
 
     /*** CLASS TO GET LIST OF MY CLAIMS OF SPECIFIC DEBATE ***/
 
     public function getClaimsByDebate(Request $request, $debateId)
     {
         $user = $request->user();
-    
+
         if (!$user) {
             return response()->json([
                 'status' => 401,
                 'message' => 'Unauthorized Access'
             ], 401);
         }
-    
+
+        // Find the root debate ID
+        $rootId = Debate::find($debateId)->root_id ?? $debateId;
+
         // Helper method to retrieve claims within a hierarchy
         $getClaimsRecursive = function ($debateId) use (&$getClaimsRecursive, $user) {
             $debate = Debate::find($debateId);
-    
+
             if (!$debate) {
                 return collect(); // Return an empty collection if the debate is not found
             }
-    
+
             $claims = $debate->children()->where('user_id', $user->id)->get();
-    
+
             foreach ($debate->children as $child) {
                 $claims = $claims->merge($getClaimsRecursive($child->id));
             }
-    
+
             return $claims;
         };
-    
+
         // Get claims within the hierarchy
-        $userClaims = $getClaimsRecursive($debateId);
-    
-        // Include the parent debate in the result
-        $parentDebate = Debate::find($debateId);
-        if ($parentDebate && $parentDebate->user_id == $user->id) {
-            $userClaims->push($parentDebate);
+        $userClaims = $getClaimsRecursive($rootId);
+
+        // Include the root debate in the result
+        $rootDebate = Debate::find($rootId);
+        if ($rootDebate && $rootDebate->user_id == $user->id) {
+            $userClaims->push($rootDebate);
         }
-    
+
         // Sort the collection by created_at in descending order (newer first)
         $userClaims = $userClaims->sortByDesc('created_at')->values()->all();
-    
+
         return response()->json([
             'status' => 200,
             'userClaims' => $userClaims,
@@ -985,93 +989,128 @@ class DebateController extends Controller
 
     /*** CLASS TO GET LIST OF CONTRIBUTIONS ON SPECIFIC DEBATE ***/
 
-    public function getContributionsRecursive($debateId) 
+    public function getContributionsRecursive($debateId)
     {
-        $debate = Debate::find($debateId);
-
-        if (!$debate) {
-            return collect(); // Return an empty collection if the debate is not found
+        $user = auth('sanctum')->user();
+    
+        if (!$user) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'Unauthorized Access'
+            ], 401);
         }
-
-        // Get user's contributions for this debate
-        $contributions = [];
-
-        // Get user's comments for this debate
-        $comments = $debate->comments()
-            ->where('user_id', auth('sanctum')->id()) // Assuming you have user authentication
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        foreach ($comments as $comment) {
-            $comment->type = 'comment';
-            array_unshift($contributions, $comment); // Add at the beginning of the array
-        }
-
-        // Get user's votes for this debate
-        $votes = $debate->votes()
-            ->where('user_id', auth('sanctum')->id()) // Assuming you have user authentication
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        foreach ($votes as $vote) {
-            $vote->type = 'vote';
-            array_unshift($contributions, $vote); // Add at the beginning of the array
-        }
-
-        // Get user's claims for this debate
-        $claims = $debate->children()
-            ->where('user_id', auth('sanctum')->id()) // Assuming you have user authentication
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        foreach ($claims as $claim) {
-            $claim->type = 'claim';
-            array_unshift($contributions, $claim); // Add at the beginning of the array
-        }
-
-        // Get user's bookmark for this debate
-        $bookmarked = auth('sanctum')->user()->bookmarkedDebates()
-            ->where('debate_id', $debateId)
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        foreach ($bookmarked as $bookmark) {
-            $bookmark->type = 'bookmark';
-            array_unshift($contributions, $bookmark); // Add at the beginning of the array
-        }
-
-        // Recursively get contributions for child debates
-        foreach ($debate->children as $child) {
-            $childContributions = $this->getContributionsRecursive($child->id);
-            $contributions = array_merge($contributions, $childContributions);
-        }
-
+    
+        // Find the root debate ID
+        $rootId = Debate::find($debateId)->root_id ?? $debateId;
+    
+        // Helper method to retrieve contributions within a hierarchy
+        $getContributionsRecursive = function ($debateId) use (&$getContributionsRecursive, $user) {
+            $debate = Debate::find($debateId);
+    
+            if (!$debate) {
+                return collect(); // Return an empty collection if the debate is not found
+            }
+    
+            // Get user's contributions for this debate
+            $contributions = [];
+    
+            // Get user's comments for this debate
+            $comments = $debate->comments()
+                ->where('user_id', $user->id)
+                ->orderBy('created_at', 'desc')
+                ->get();
+    
+            foreach ($comments as $comment) {
+                $comment->type = 'comment';
+                array_unshift($contributions, $comment); // Add at the beginning of the array
+            }
+    
+            // Get user's votes for this debate
+            $votes = $debate->votes()
+                ->where('user_id', $user->id)
+                ->orderBy('created_at', 'desc')
+                ->get();
+    
+            foreach ($votes as $vote) {
+                $vote->type = 'vote';
+                array_unshift($contributions, $vote); // Add at the beginning of the array
+            }
+    
+            // Get user's claims for this debate
+            $claims = $debate->children()
+                ->where('user_id', $user->id)
+                ->orderBy('created_at', 'desc')
+                ->get();
+    
+            foreach ($claims as $claim) {
+                $claim->type = 'claim';
+                array_unshift($contributions, $claim); // Add at the beginning of the array
+            }
+    
+            // Get user's bookmark for this debate
+            $bookmarked = $user->bookmarkedDebates()
+                ->where('debate_id', $debateId)
+                ->orderBy('created_at', 'desc')
+                ->get();
+    
+            foreach ($bookmarked as $bookmark) {
+                $bookmark->type = 'bookmark';
+                array_unshift($contributions, $bookmark); // Add at the beginning of the array
+            }
+    
+            // Recursively get contributions for child debates
+            foreach ($debate->children as $child) {
+                $childContributions = $getContributionsRecursive($child->id);
+                $contributions = array_merge($contributions, $childContributions);
+            }
+    
+            return $contributions;
+        };
+    
+        // Get contributions within the hierarchy
+        $contributions = $getContributionsRecursive($rootId);
+    
         // Sort all contributions by time in descending order
         usort($contributions, function ($a, $b) {
             return strtotime($b->created_at) - strtotime($a->created_at);
         });
-
-        return $contributions;
+    
+        return response()->json([
+            'status' => 200,
+            'contributions' => $contributions,
+        ], 200);
     }
+    
 
 
     /*** CLASS TO GET LIST OF COMMENTS IN SPECIFIC DEBATE ***/
 
     public function getCommentsByDebate($debateId)
     {
-        $userId = auth('sanctum')->id(); // Assuming you have user authentication
-
-        $userSpecificComments = DebateComment::whereHas('debate', function ($query) use ($userId, $debateId) {
-            $query->where('id', $debateId)
-                ->orWhereHas('parent', function ($query) use ($debateId) {
-                    $query->where('id', $debateId);
-                });
-        })->where('user_id', $userId)
+        $user = auth('sanctum')->user();
+    
+        if (!$user) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'Unauthorized Access'
+            ], 401);
+        }
+    
+        // Find the root debate ID
+        $rootId = Debate::find($debateId)->root_id ?? $debateId;
+    
+        // Get user-specific comments within the hierarchy
+        $userSpecificComments = DebateComment::whereHas('debate', function ($query) use ($rootId) {
+                $query->where('root_id', $rootId)
+                    ->orWhereNull('root_id'); // Include comments with null root_id
+            })
+            ->where('user_id', $user->id)
             ->orderBy('created_at', 'desc')
             ->get();
-
+    
         return response()->json([
+            'status' => 200,
             'userSpecificComments' => $userSpecificComments,
-        ]);
-    }
+        ], 200);
+    }    
 }
