@@ -85,19 +85,19 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function(){
 
 
 // Admin APIs
-Route::get('/admin/all-users', [AdminController::class, 'getAllUsers']);
-Route::get('/admin/user/{userId}', [AdminController::class, 'getUserDetails']);
-Route::delete('/admin/user/{userId}', [AdminController::class, 'deleteUser']);
+Route::get('/admin/all-users', [AdminController::class, 'getAllUsers']); // get list of all users
+Route::get('/admin/user/{userId}', [AdminController::class, 'getUserDetails']); // get user details by user ID
+Route::delete('/admin/user/{userId}', [AdminController::class, 'deleteUser']); // delete user by user ID
 
-Route::get('/admin/all-votes', [AdminController::class, 'getAllVotes']);
-Route::delete('/admin/delete-vote/{id}', [AdminController::class, 'deleteVote']);
+Route::get('/admin/all-votes', [AdminController::class, 'getAllVotes']); // get list of all votes
+Route::delete('/admin/delete-vote/{id}', [AdminController::class, 'deleteVote']); // delete vote by vote ID
 
-Route::get('/admin/all-comments', [AdminController::class, 'getAllComments']);
-Route::delete('/admin/delete-comment/{id}', [AdminController::class, 'deleteComment']);
+Route::get('/admin/all-comments', [AdminController::class, 'getAllComments']); // get list of all comments
+Route::delete('/admin/delete-comment/{id}', [AdminController::class, 'deleteComment']); // delete comment by comment ID
 
-Route::get('/admin/all-debates', [AdminController::class, 'getAllDebates']);
-Route::delete('/admin/delete-debate/{id}', [AdminController::class, 'deleteDebate']);
+Route::get('/admin/all-debates', [AdminController::class, 'getAllDebates']); // get list of all debates
+Route::delete('/admin/delete-debate/{id}', [AdminController::class, 'deleteDebate']); // delete debate by debate ID
 
-Route::get('/admin/all-stats', [AdminController::class, 'getAllStats']);
+Route::get('/admin/all-stats', [AdminController::class, 'getAllStats']); // get all stats 
 
-Route::post('/admin/add-tag', [AdminController::class, 'addTag']);
+Route::post('/admin/add-tag', [AdminController::class, 'addTag']); // add tag by admins

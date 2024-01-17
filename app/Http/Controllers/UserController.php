@@ -249,8 +249,9 @@ class UserController extends Controller
     
     public function getSelfActivity(Request $request)
     {
-        $user = $request->user();
+        $user = $request->user(); // Retrieve the authenticated user
     
+        // Check user is available or not
         if (!$user) {
             return response()->json([
                 'status' => 401,
@@ -274,19 +275,19 @@ class UserController extends Controller
         // Get votes given by the user
         $votes = Vote::where('user_id', $user->id)->get();
     
-        // Combine all activities
+        // Combine all activities together to give response
         $activities = collect([])
             ->merge($debates->map(function ($debate) {
                 return [
                     'type' => 'debate',
-                    'id' => $debate->root_id ?? $debate->id, // Use root_id instead of parent_id
+                    'id' => $debate->root_id ?? $debate->id, 
                     'title' => $debate->root_id ? Debate::find($debate->root_id)->title : $debate->title,
                     'image' => $debate->root_id ? Debate::find($debate->root_id)->image : $debate->image,
                     'created_at' => $debate->created_at,
                 ];
             }))
             ->merge($comments->map(function ($comment) {
-                $debateId = $comment->debate->root_id ?? $comment->debate_id; // Use root_id instead of parent_id
+                $debateId = $comment->debate->root_id ?? $comment->debate_id; 
                 $rootDebate = Debate::where('id', $debateId)->first();
     
                 return [
@@ -298,7 +299,7 @@ class UserController extends Controller
                 ];
             }))
             ->merge($votes->map(function ($vote) {
-                $debateId = $vote->debate->root_id ?? $vote->debate_id; // Use root_id instead of parent_id
+                $debateId = $vote->debate->root_id ?? $vote->debate_id; 
                 $rootDebate = Debate::where('id', $debateId)->first();
     
                 return [
@@ -333,8 +334,9 @@ class UserController extends Controller
 
     public function getUserProfileDetails(Request $request, int $userId)
     {
-        $user = User::find($userId);
+        $user = User::find($userId); // Retrieve the authenticated user
 
+        // Check user is available or not
         if (!$user) {
             return response()->json([
                 'status' => 404,
@@ -342,21 +344,24 @@ class UserController extends Controller
             ], 404);
         }
 
-        // Fetch user contributions
+        // Fetch user claims count
         $totalClaims = Debate::where('user_id', $user->id)
             ->orWhere('side', 'pros')
             ->orWhereNotNull('parent_id')
             ->count();
 
+        // Fetch user votes count
         $totalVotes = Vote::whereHas('debate', function ($query) use ($user) {
             $query->where('user_id', $user->id);
         })->count();
 
+        // Fetch user comments count
         $totalComments = DebateComment::where('user_id', $user->id)->count();
 
+        // Combile claims , votes and comments as contribution count
         $totalContributions = $totalClaims + $totalVotes + $totalComments;
 
-        // Fetch user activities
+        // Fetch user activities for debates and child debates
         $debates = Debate::where('user_id', $user->id)
             ->orWhereHas('pros', function ($query) use ($user) {
                 $query->where('user_id', $user->id);
@@ -366,10 +371,13 @@ class UserController extends Controller
             })
             ->get();
 
+        // fetch list of user comments
         $comments = DebateComment::where('user_id', $user->id)->get();
 
+        // fetch list of user votes
         $votes = Vote::where('user_id', $user->id)->get();
 
+        // Give in return all activity combined
         $activities = collect([])
             ->merge($debates->map(function ($debate) {
                 return [
@@ -405,12 +413,14 @@ class UserController extends Controller
                 ];
             }));
 
+        // Group activity by ID
         $groupedActivities = $activities->groupBy('id');
         $filteredActivities = $groupedActivities->map(function ($group) {
             return $group->sortByDesc('created_at')->first();
         });
-        $sortedActivities = $filteredActivities->sortByDesc('created_at')->values()->all();
+        $sortedActivities = $filteredActivities->sortByDesc('created_at')->values()->all(); // Sort by time in desc order
 
+        // Return all details in response
         return response()->json([
             'status' => 200,
             'user_id' => $user->id,

@@ -25,6 +25,7 @@ class DebateController extends Controller
 
     public function getalldebates()
     {
+        // Get all debates where parent_id is null (only return root debate)
         $debates = Debate::whereNull('parent_id')->get();
 
         // Transform the debates into a simplified structure
@@ -32,6 +33,7 @@ class DebateController extends Controller
             return $this->transformMainDebate($debate);
         });
 
+        // return all root debates
         return response()->json([
             'status' => 200,
             'mainDebates' => $transformedDebates,
@@ -40,6 +42,7 @@ class DebateController extends Controller
 
     private function transformMainDebate($debate)
     {
+        // explode tags from comma as array
         $debate->tags = json_decode($debate->tags);
 
         return $debate;
@@ -50,6 +53,7 @@ class DebateController extends Controller
 
     public function storetodb(Request $request)
     {
+        // validate th requested fields
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:191',
             'thesis' => 'required|string|max:191',
@@ -58,6 +62,7 @@ class DebateController extends Controller
             'file' => 'nullable|file|mimes:jpeg,png,jpg,gif|max:2048', // Add this line for file validation
         ]);
     
+        // response if validation fails
         if ($validator->fails()) {
             return response()->json([
                 'status' => 422,
@@ -67,6 +72,7 @@ class DebateController extends Controller
     
         $user = auth('sanctum')->user(); // Retrieve the authenticated user
 
+        // return if user not registered in site
         if (!$user) {
             return response()->json([
                 'status' => 401,
@@ -74,7 +80,7 @@ class DebateController extends Controller
             ], 401);
         }
     
-
+        // add image into debate databse if added into request
         $filePath = null;
         if ($request->hasFile('file')) {
             $file = $request->file('file');
@@ -83,12 +89,14 @@ class DebateController extends Controller
 
         $tagsArray = !empty($request->tags) ? explode(',', $request->tags) : null; // Convert tags to an array or set to null if not provided
 
+        // Add tag to tags table if not exists
         if (!empty($tagsArray)) {
             foreach ($tagsArray as $tag) {
                 $this->addTagIfNotExists($tag);
             }
         }
 
+        // create debate and store data in database
         $storevar = debate::create([
             'user_id' => $user->id,
             'title' => $request->title,
@@ -107,6 +115,7 @@ class DebateController extends Controller
         $user->total_contributions += 1; // Increment total contributions
         $user->save();
 
+        // response after successfull debate creation and if ay error found
         if ($storevar) {
             return response()->json([
                 'status' => 200,
@@ -137,8 +146,10 @@ class DebateController extends Controller
 
     public function getAllTags()
     {
+        // get all tags list
         $tags = Tag::all();
-    
+
+        // get all tags with name and images
         $transformedTags = $tags->map(function ($tag) {
             return [
                 'name' => $tag->tag,
@@ -146,6 +157,7 @@ class DebateController extends Controller
             ];
         });
     
+        // return after succesfull response
         return response()->json([
             'status' => 200,
             'tags' => $transformedTags,
@@ -157,6 +169,7 @@ class DebateController extends Controller
 
     public function getDebatesByTag($tag)
     {
+        // find debates by tag (without case sensitive)
         $debates = Debate::where(function($query) use ($tag) {
             $tagArray = json_encode($tag);
             $query->where('tags', 'like', '%"'. $tag .'"%'); // Look for exact match within the JSON string
@@ -172,6 +185,7 @@ class DebateController extends Controller
                 return $debate;
             });
 
+            // return debate if found by tag or return else when not any debate with specific tag
             return response()->json([
                 'status' => 200,
                 'debates' => $debates,
@@ -191,6 +205,7 @@ class DebateController extends Controller
     {
         $user = auth('sanctum')->user(); // Retrieve the authenticated user
 
+        // return if user not registered
         if (!$user) {
             return response()->json([
                 'status' => 401,
@@ -198,8 +213,10 @@ class DebateController extends Controller
             ], 401);
         }
 
+        // find debate by ID
         $findbyidvar = Debate::find($id);
     
+        // return if not debate found with requested ID
         if (!$findbyidvar) {
             return response()->json([
                 'status' => 404,
@@ -215,6 +232,7 @@ class DebateController extends Controller
             ], 403);
         }
     
+        // return debate details if everythin is fine
         return response()->json([
             'status' => 200,
             'Debate' => $findbyidvar
@@ -230,6 +248,7 @@ class DebateController extends Controller
 
             $user = auth('sanctum')->user(); // Retrieve the authenticated user
 
+            // return if user not registered
             if (!$user) {
                 return response()->json([
                     'status' => 401,
@@ -237,6 +256,7 @@ class DebateController extends Controller
                 ], 401);
             }
 
+            // validate all the fields in request by user
             $validator = Validator::make($request->all(), [
                 'title' => 'string|max:191',
                 'thesis' => 'string|max:191',
@@ -245,6 +265,7 @@ class DebateController extends Controller
                 'file' => 'nullable|file|mimes:jpeg,png,jpg,gif|max:2048', // Add this line for file validation
             ]);
         
+            // return if validation in fields does not match
             if ($validator->fails()) {
                 return response()->json([
                     'status' => 422,
@@ -252,6 +273,7 @@ class DebateController extends Controller
                 ], 422);
             }
         
+            // find debate by ID in request
             $storevar = debate::find($id);
             if (!$storevar) {
                 return response()->json([
@@ -288,6 +310,7 @@ class DebateController extends Controller
                     }
                 }
                 
+                // update debate in DB if everything fine
                 $storevar->update([
                     'title' => $request->title,
                     'thesis' => $request->thesis,
@@ -300,6 +323,7 @@ class DebateController extends Controller
                     'voting_allowed' => $request->voting_allowed ?? false,
                 ]);
         
+                // return successful response after successful updates
                 return response()->json([
                     'status' => 200,
                     'message' => 'Debate topic Updated Successfully'
@@ -315,6 +339,7 @@ class DebateController extends Controller
             // Find the debate by ID with its pros and cons
             $debate = Debate::with(['pros', 'cons'])->find($id);
 
+            // return if debate with requested ID does not available
             if (!$debate) {
                 return response()->json([
                     'status' => 404,
@@ -325,6 +350,7 @@ class DebateController extends Controller
             // Delete the debate and its entire hierarchy
             $this->deleteDebateHierarchy($debate);
 
+            // response after successful deletion 
             return response()->json([
                 'status' => 200,
                 'message' => "Debate topic and its hierarchy deleted successfully"
@@ -375,6 +401,7 @@ class DebateController extends Controller
             'title' => 'required|string|max:191',
         ]);
     
+        // response if validation failed
         if ($validator->fails()) {
             return response()->json([
                 'status' => 422,
@@ -384,7 +411,7 @@ class DebateController extends Controller
     
         $user = auth('sanctum')->user(); // Retrieve the authenticated user
 
-        
+        // return if user not registered or not valid user token
         if (!$user) {
             return response()->json([
                 'status' => 401,
@@ -396,6 +423,7 @@ class DebateController extends Controller
         // Find the parent debate
         $parentDebate = Debate::find($parentId);
     
+        // response if debate not found with requested ID
         if (!$parentDebate) {
             return response()->json([
                 'status' => 404,
@@ -421,6 +449,7 @@ class DebateController extends Controller
         $user->total_contributions += 1; // Increment total contributions
         $user->save();
 
+        // response after successfully creating child debate
         return response()->json([
             'status' => 200,
             'message' => 'Child Debate created Successfully',
@@ -437,6 +466,7 @@ class DebateController extends Controller
         // Find the specified debate by ID with its pros and cons
         $debate = Debate::with(['pros', 'cons'])->find($id);
 
+        // response if debate with requested ID did not found
         if (!$debate) {
             return response()->json([
                 'status' => 404,
@@ -447,6 +477,7 @@ class DebateController extends Controller
         // Transform the debate into a nested structure
         $transformedDebate = $this->transformDebate($debate);
 
+        // response of successfull
         return response()->json([
             'status' => 200,
             'debate' => $transformedDebate,
@@ -455,14 +486,17 @@ class DebateController extends Controller
 
     private function transformDebate($debate)
     {
+        // explode tags from comma as array
         $debate->tags = json_decode($debate->tags);
 
+        // check if debate has pros
         if ($debate->pros) {
             $debate->pros->transform(function ($pro) {
                 return $this->transformDebate($pro);
             });
         }
 
+        // check if debate has cons
         if ($debate->cons) {
             $debate->cons->transform(function ($con) {
                 return $this->transformDebate($con);
@@ -477,10 +511,12 @@ class DebateController extends Controller
 
     public function vote(Request $request, int $debateId)
     {
+        // validate user input
         $validator = Validator::make($request->all(), [
             'vote' => 'required|integer|between:1,5',
         ]);
 
+        // response after validation fails
         if ($validator->fails()) {
             return response()->json([
                 'status' => 422,
@@ -490,7 +526,7 @@ class DebateController extends Controller
 
         $user = auth('sanctum')->user(); // Retrieve the authenticated user
 
-        
+        // return if user is not authorized
         if (!$user) {
             return response()->json([
                 'status' => 401,
@@ -498,9 +534,10 @@ class DebateController extends Controller
             ], 401);
         }
         
-
+        // find debate by requested ID
         $debate = Debate::find($debateId);
 
+        // Response if debate not found with requested ID
         if (!$debate) {
             return response()->json([
                 'status' => 404,
@@ -508,6 +545,7 @@ class DebateController extends Controller
             ], 404);
         }
 
+        // check if voting allowed or not on root debate
         if (!$debate->voting_allowed) {
             return response()->json([
                 'status' => 403,
@@ -515,11 +553,13 @@ class DebateController extends Controller
             ], 403);
         }
 
+        // add vote in debate
         $vote = new Vote([
             'user_id' => $user->id,
             'vote' => $request->vote,
         ]);
 
+        // save vote in debate
         $debate->votes()->save($vote);
 
         // Increment total_votes column
@@ -530,6 +570,7 @@ class DebateController extends Controller
         $user->total_contributions += 1; // Increment total contributions
         $user->save();
 
+        // response after successful voting
         return response()->json([
             'status' => 200,
             'message' => 'Vote recorded successfully',
@@ -541,8 +582,10 @@ class DebateController extends Controller
 
     public function getVoteCounts($debateId)
     {
+        // find debate by requested ID
         $debate = Debate::find($debateId);
 
+        // return if no debate fpound by requested ID
         if (!$debate) {
             return response()->json([
                 'status' => 404,
@@ -550,6 +593,7 @@ class DebateController extends Controller
             ], 404);
         }
 
+        // get vote count from database
         $voteCounts = $debate->votes()
             ->select('vote', DB::raw('COUNT(*) as count'))
             ->groupBy('vote')
@@ -574,10 +618,12 @@ class DebateController extends Controller
 
     public function addComment(Request $request, int $debateId)
     {
+        // Validate user input
         $validator = Validator::make($request->all(), [
             'comment' => 'required|string',
         ]);
 
+        // response if validation fails
         if ($validator->fails()) {
             return response()->json([
                 'status' => 422,
@@ -587,6 +633,7 @@ class DebateController extends Controller
 
         $user = auth('sanctum')->user(); // Retrieve the authenticated user
 
+        // return if user not registered
         if (!$user) {
             return response()->json([
                 'status' => 401,
@@ -594,6 +641,7 @@ class DebateController extends Controller
             ], 401);
         }
 
+        // create debate comment
         $debateComment = DebateComment::create([
             'user_id' => $user->id, // Assuming you have user authentication
             'debate_id' => $debateId,
@@ -605,6 +653,7 @@ class DebateController extends Controller
         $user->total_contributions += 1; // Increment total contributions
         $user->save();
 
+        // response after successful comment addition
         return response()->json([
             'status' => 200,
             'message' => 'Comment added successfully',
@@ -618,9 +667,13 @@ class DebateController extends Controller
 
     public function editComment(Request $request, int $commentId)
     {
+        // retrive authorized user
         $user = $request->user();
+
+        // find comment by requested ID
         $comment = DebateComment::find($commentId);
 
+        // return if no comments found with requested ID
         if (!$comment) {
             return response()->json([
                 'status' => 404,
@@ -641,6 +694,7 @@ class DebateController extends Controller
             'comment' => $request->comment,
         ]);
 
+        // response after succesfull updation
         return response()->json([
             'status' => 200,
             'message' => 'Comment edited successfully',
@@ -654,9 +708,13 @@ class DebateController extends Controller
 
     public function hideComment(Request $request, int $commentId)
     {
+        // retrive authorized user
         $user = $request->user();
+
+        // find comment by requested ID
         $comment = DebateComment::find($commentId);
 
+        // return if no comment found by requested ID
         if (!$comment) {
             return response()->json([
                 'status' => 404,
@@ -675,6 +733,7 @@ class DebateController extends Controller
         // Soft delete the comment (mark it as hidden)
         $comment->delete();
 
+        // return after successfully hiding comment
         return response()->json([
             'status' => 200,
             'message' => 'Comment hidden successfully',
@@ -686,11 +745,13 @@ class DebateController extends Controller
 
     public function getComments(int $debateId)
     {
+        // find comments by debate ID
         $comments = DebateComment::where('debate_id', $debateId)
             ->with('user:id,username') // Load user relationship to get user names
             ->orderBy('created_at', 'asc')
             ->get();
 
+        // return comments list on debate (return empty array when no comments)
         return response()->json([
             'status' => 200,
             'comments' => $comments,
@@ -704,6 +765,7 @@ class DebateController extends Controller
     {
         $user = auth('sanctum')->user(); // Retrieve the authenticated user
 
+        // return if user not authorized
         if (!$user) {
             return response()->json([
                 'status' => 401,
@@ -711,6 +773,7 @@ class DebateController extends Controller
             ], 401);
         }
     
+        // find debate by debate ID
         $debate = Debate::find($debateId);
 
         if (!$debate) {
@@ -720,6 +783,7 @@ class DebateController extends Controller
             ], 404);
         }
 
+        // get owner of debate
         $debateOwner = $debate->user;
     
         // Check if the user has already given thanks
@@ -748,6 +812,7 @@ class DebateController extends Controller
             $message = 'Thanks recorded successfully.';
         }
     
+        // return after successfull response
         return response()->json([
             'status' => 200,
             'message' => $message,
@@ -760,10 +825,12 @@ class DebateController extends Controller
 
     public function searchDebates(Request $request)
     {
+        // validate user input
         $validator = Validator::make($request->all(), [
             'search_query' => 'required|string|max:191',
         ]);
     
+        // return if validation fails
         if ($validator->fails()) {
             return response()->json([
                 'status' => 422,
@@ -771,6 +838,7 @@ class DebateController extends Controller
             ], 422);
         }
     
+        // search words by user input
         $searchQuery = $request->search_query;
     
         $mainDebates = Debate::whereNull('parent_id') // Only select main debates
@@ -790,7 +858,8 @@ class DebateController extends Controller
                 return $this->transformMainDebate($mainDebate);
             });
     
-            return response()->json([
+        // return response after search query excecution
+        return response()->json([
                 'status' => 200,
                 'debates' => $transformedMainDebates,
             ], 200);
@@ -812,6 +881,7 @@ class DebateController extends Controller
             ->select('id', 'username', 'total_contributions')
             ->get();
 
+        // return list of contributors
         return response()->json([
             'status' => 200,
             'topContributors' => $topContributors,
@@ -835,6 +905,7 @@ class DebateController extends Controller
         // Fetch overall claims (sum of total claims from all users)
         $overallClaims = (int) User::sum('total_claims');
     
+        // return all stats
         return response()->json([
             'status' => 200,
             'overallContributions' => $overallContributions,
@@ -849,8 +920,10 @@ class DebateController extends Controller
 
     public function toggleBookmark(Request $request, int $debateId)
     {
+        // retrive authorized user
         $user = auth('sanctum')->user();
 
+        // check user authorized or not
         if (!$user) {
             return response()->json([
                 'status' => 401,
@@ -858,8 +931,10 @@ class DebateController extends Controller
             ], 401);
         }
 
+        // find debate by requested ID
         $debate = Debate::find($debateId);
 
+        // return if no debate found by requested ID
         if (!$debate) {
             return response()->json([
                 'status' => 404,
@@ -867,6 +942,7 @@ class DebateController extends Controller
             ], 404);
         }
 
+        // bookmark debate by user ID and debate ID
         $bookmark = Bookmark::where('user_id', $user->id)
                             ->where('debate_id', $debateId)
                             ->first();
@@ -886,6 +962,7 @@ class DebateController extends Controller
                 'debate_id' => $debateId,
             ]);
 
+            // return after succesfull excecution
             return response()->json([
                 'status' => 200,
                 'message' => 'Debate bookmarked successfully',
@@ -900,6 +977,7 @@ class DebateController extends Controller
    {
        $user = $request->user(); // Get the authenticated user directly from the token
    
+       // return if user not authorized
        if (!$user) {
            return response()->json([
                'status' => 401,
@@ -910,6 +988,7 @@ class DebateController extends Controller
        // Find the debate by ID
        $debate = Debate::find($debateId);
    
+       // return if debated with requested ID not found
        if (!$debate) {
            return response()->json([
                'status' => 404,
@@ -926,6 +1005,7 @@ class DebateController extends Controller
            ->orWhereNull('root_id') // Include debates with null root_id
            ->get();
    
+        // return after successfull excecution
        return response()->json([
            'status' => 200,
            'bookmarkedDebates' => $bookmarkedDebates,
@@ -939,8 +1019,10 @@ class DebateController extends Controller
 
     public function getClaimsByDebate(Request $request, $debateId)
     {
+        // retrive authorized user
         $user = $request->user();
 
+        // check if user authorized or not
         if (!$user) {
             return response()->json([
                 'status' => 401,
@@ -959,8 +1041,10 @@ class DebateController extends Controller
                 return collect(); // Return an empty collection if the debate is not found
             }
 
+            // make child debate as claim
             $claims = $debate->children()->where('user_id', $user->id)->get();
 
+            // merge child and parent together
             foreach ($debate->children as $child) {
                 $claims = $claims->merge($getClaimsRecursive($child->id));
             }
@@ -991,8 +1075,10 @@ class DebateController extends Controller
 
     public function getContributionsRecursive($debateId)
     {
+        // retrive authorized user
         $user = auth('sanctum')->user();
     
+        // check if user authorized or not
         if (!$user) {
             return response()->json([
                 'status' => 401,
@@ -1064,6 +1150,7 @@ class DebateController extends Controller
                 $contributions = array_merge($contributions, $childContributions);
             }
     
+            // return all contributions
             return $contributions;
         };
     
@@ -1087,8 +1174,10 @@ class DebateController extends Controller
 
     public function getCommentsByDebate($debateId)
     {
+        // retrive authorized user
         $user = auth('sanctum')->user();
     
+        // check if user is authorized or not
         if (!$user) {
             return response()->json([
                 'status' => 401,
@@ -1108,6 +1197,7 @@ class DebateController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
     
+        // return after succesfull excecution
         return response()->json([
             'status' => 200,
             'userSpecificComments' => $userSpecificComments,

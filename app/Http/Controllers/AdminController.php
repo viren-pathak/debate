@@ -21,8 +21,10 @@ class AdminController extends Controller
 
     public function getAllUsers()
     {
+        // get list of all users
         $users = User::all();
 
+        // return list of all users
         return response()->json($users);
     }
 
@@ -32,12 +34,15 @@ class AdminController extends Controller
 
     public function getUserDetails($userId)
     {
+        // find user by requested ID
         $user = User::find($userId);
 
+        // return if no user found with requested ID
         if (!$user) {
             return response()->json(['error' => 'User not found'], 404);
         }
 
+        // return details of user if found with requested ID
         return response()->json($user);
     }
 
@@ -47,14 +52,18 @@ class AdminController extends Controller
 
     public function deleteUser($userId)
     {
+        // find user by requested ID
         $user = User::find($userId);
 
+        // return if no user found by requested ID
         if (!$user) {
             return response()->json(['error' => 'User not found'], 404);
         }
 
+        // delete user if available
         $user->delete();
 
+        // response after successful deletion
         return response()->json(['message' => 'User deleted successfully']);
     }
 
@@ -64,6 +73,7 @@ class AdminController extends Controller
 
     public function getAllVotes()
     {
+        // get list of all votes
         $votes = Vote::with(['user:id,username', 'debate:id,title'])
             ->get()
             ->map(function ($vote) {
@@ -77,6 +87,7 @@ class AdminController extends Controller
                 ];
             });
 
+        // response after successful excecution
         return response()->json([
             'status' => 200,
             'votes' => $votes,
@@ -89,8 +100,10 @@ class AdminController extends Controller
 
     public function deleteVote($id)
     {
+        // find vote by requested ID
         $vote = Vote::find($id);
 
+        // return if no vote found by requested ID
         if (!$vote) {
             return response()->json([
                 'status' => 404,
@@ -107,6 +120,7 @@ class AdminController extends Controller
         // Delete the vote
         $vote->delete();
 
+        // return after succeful excecution
         return response()->json([
             'status' => 200,
             'message' => 'Vote deleted successfully',
@@ -119,6 +133,7 @@ class AdminController extends Controller
 
     public function getAllComments()
     {
+        // get list of all comments
         $comments = DebateComment::with(['user:id,username', 'debate:id,title'])
             ->get()
             ->map(function ($comment) {
@@ -130,8 +145,9 @@ class AdminController extends Controller
                     'created_at' => $comment->created_at,
                     'updated_at' => $comment->updated_at,
                 ];
-            });
+        });
 
+        // response after succesful execution
         return response()->json([
             'status' => 200,
             'comments' => $comments,
@@ -144,8 +160,10 @@ class AdminController extends Controller
 
     public function deleteComment($id)
     {
+        // find comment by requested ID
         $comment = DebateComment::find($id);
 
+        // return if no comment available by requested ID
         if (!$comment) {
             return response()->json([
                 'status' => 404,
@@ -167,10 +185,11 @@ class AdminController extends Controller
 
 
 
-    /*** FUNCTION TO GET ALL USERS LIST ***/
+    /*** FUNCTION TO GET ALL DEBATES LIST ***/
 
     public function getAllDebates()
     {
+        // get all debates list
         $debates = Debate::get();
 
         // Transform the debates into a simplified structure
@@ -184,6 +203,7 @@ class AdminController extends Controller
         ], 200);
     }
 
+    // private function to explode tags from comma to array
     private function transformMainDebate($debate)
     {
         $debate->tags = json_decode($debate->tags);
@@ -200,6 +220,7 @@ class AdminController extends Controller
             // Find the debate by ID with its pros and cons
             $debate = Debate::with(['pros', 'cons'])->find($id);
     
+            // return if no debate available with requested ID
             if (!$debate) {
                 return response()->json([
                     'status' => 404,
@@ -216,6 +237,7 @@ class AdminController extends Controller
             ], 200);
     }
     
+    // private function to delete debate by hierarchy
     private function deleteDebateHierarchy($debate)
     {
         // Recursively delete child debates (pros and cons)
@@ -278,11 +300,13 @@ class AdminController extends Controller
     /*** FUNCTION TO ADD TAGS in database ***/
     public function addTag(Request $request)
     {
+        // validate input
         $validator = Validator::make($request->all(), [
             'tag' => 'required|string|max:191',
             'image' => 'nullable|file|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
     
+        // return if validation fails
         if ($validator->fails()) {
             return response()->json([
                 'status' => 422,
@@ -301,17 +325,20 @@ class AdminController extends Controller
             ], 200);
         }
     
+        // add image into tag
         $imagePath = null;
         if ($request->hasFile('image')) {
             $image = $request->file('image');
             $imagePath = FileUploadService::upload($image, 'tag_images');
         }
     
+        // create tag and store in DB
         $tag = Tag::create([
             'tag' => $request->tag,
             'image' => $imagePath,
         ]);
     
+        // response after succesfull excecution
         return response()->json([
             'status' => 200,
             'message' => 'Tag created successfully',
