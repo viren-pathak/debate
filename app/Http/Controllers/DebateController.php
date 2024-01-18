@@ -1203,4 +1203,59 @@ class DebateController extends Controller
             'userSpecificComments' => $userSpecificComments,
         ], 200);
     }    
+
+
+    /*** CLASS TO CREATE FILTER ON THE BASIS OF USER AND ACTIVITY ***/
+
+
+    public function activityFilter($userId, $debateId, $activityType)
+    {
+        // Validate activity type
+        $validActivityTypes = ['comments', 'votes', 'debates']; // Add more types as needed
+        if (!in_array($activityType, $validActivityTypes)) {
+            return response()->json([
+                'status' => 422,
+                'message' => 'Invalid activity type.',
+            ], 422);
+        }
+
+        // Retrieve user-specific activities within the hierarchy based on the specified activity type
+        switch ($activityType) {
+            case 'comments':
+                $userActivities = DebateComment::whereHas('debate', function ($query) use ($debateId) {
+                        $query->where('root_id', $debateId)
+                            ->orWhereNull('root_id'); // Include comments with null root_id
+                    })
+                    ->where('user_id', $userId)
+                    ->orderBy('created_at', 'desc')
+                    ->get();
+                break;
+            case 'votes':
+                $userActivities = Vote::whereHas('debate', function ($query) use ($debateId) {
+                        $query->where('root_id', $debateId)
+                            ->orWhereNull('root_id'); // Include votes with null root_id
+                    })
+                    ->where('user_id', $userId)
+                    ->orderBy('created_at', 'desc')
+                    ->get();
+                break;
+            case 'debates':
+                $userActivities = Debate::where('user_id', $userId)
+                    ->where(function ($query) use ($debateId) {
+                        $query->where('root_id', $debateId)
+                            ->orWhere('id', $debateId);
+                    })
+                    ->orderBy('created_at', 'desc')
+                    ->get();
+                break;
+        }
+
+        return response()->json([
+            'status' => 200,
+            'user_id' => $userId,
+            'activity_type' => $activityType,
+            'activities' => $userActivities,
+        ], 200);
+    }
+
 }

@@ -42,6 +42,8 @@ Route::post('/search', [DebateController::class, 'searchDebates']); // search De
 Route::get('/top-contributors', [DebateController::class, 'topContributors']); // Get list of top contributors in home page
 Route::get('/overall-stats', [DebateController::class, 'overallStats']); // Get overall stats of diyun
 
+Route::get('/debates/activity/{userId}/{debateId}/{activityType}', [DebateController::class, 'activityFilter']);
+
 Route::post('/debates/{debateId}/vote', [DebateController::class, 'vote']); // Add vote into debate
 Route::get('/debates/{debateId}/vote-counts', [DebateController::class, 'getVoteCounts']); // get vote list
 
