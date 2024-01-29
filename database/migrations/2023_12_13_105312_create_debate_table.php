@@ -24,6 +24,7 @@ return new class extends Migration
             $table->string('image')->nullable();
             $table->string('imgname')->nullable();
             $table->timestamps();
+            $table->boolean('archived')->default(false);
             $table->string('isDebatePublic')->nullable();
             $table->string('isType')->nullable();
             $table->boolean('voting_allowed')->default(false);

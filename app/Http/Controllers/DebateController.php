@@ -31,7 +31,7 @@ class DebateController extends Controller
         // Transform the debates into a simplified structure
         $transformedDebates = $debates->map(function ($debate) {
             return $this->transformMainDebate($debate);
-        });
+        })->filter(); // Remove null values from the collection
 
         // return all root debates
         return response()->json([
@@ -44,6 +44,11 @@ class DebateController extends Controller
     {
         // explode tags from comma as array
         $debate->tags = json_decode($debate->tags);
+
+            // Exclude archived debates
+        if ($debate->archived) {
+            return null; // Return an empty JSON object
+        }
 
         return $debate;
     }
@@ -377,6 +382,100 @@ class DebateController extends Controller
     }
 
 
+    /*** CLASS TO ARCHIVE DEBATE ***/
+
+    public function archiveDebate(Request $request, int $debateId)
+    {
+        // Find the debate
+        $debate = Debate::find($debateId);
+
+        // Return 404 if debate not found
+        if (!$debate) {
+            return response()->json([
+                'status' => 404,
+                'message' => 'Debate not found!',
+            ], 404);
+        }
+
+        // Check if the authenticated user is the owner of the debate
+        $user = auth('sanctum')->user();
+        if (!$user || $user->id !== $debate->user_id) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Unauthorized to archive this debate!',
+            ], 403);
+        }
+
+        // Archive the debate and its children
+        $this->archiveDebateRecursive($debate);
+
+        return response()->json([
+            'status' => 200,
+            'message' => 'Debate archived successfully!',
+        ], 200);
+    }
+
+    private function archiveDebateRecursive($debate)
+    {
+        // Archive the current debate
+        $debate->update(['archived' => true]);
+
+        // Recursively archive its children
+        foreach ($debate->children as $childDebate) {
+            $this->archiveDebateRecursive($childDebate);
+        }
+    }
+
+
+    /*** CLASS TO DISPLAY ALL DEBATES WITH ARCHIVED DEBATES ***/
+
+    public function getAllDebatesWithArchived($id)
+    {
+        // Find the specified debate by ID with its pros and cons
+        $debate = Debate::with(['pros', 'cons'])->find($id);
+
+        // response if debate with requested ID did not found
+        if (!$debate) {
+            return response()->json([
+                'status' => 404,
+                'message' => 'Debate not found!'
+            ], 404);
+        }
+
+        // Transform the debate into a nested structure
+        $transformedDebate = $this->transformArchiveDebate($debate);
+
+        // response of successfull
+        return response()->json([
+            'status' => 200,
+            'debate' => $transformedDebate,
+        ], 200);
+    }
+
+    private function transformArchiveDebate($debate)
+    {
+        // explode tags from comma as array
+        $debate->tags = json_decode($debate->tags);
+
+
+        // check if debate has pros
+        if ($debate->pros) {
+            $debate->pros->transform(function ($pro) {
+                return $this->transformArchiveDebate($pro);
+            });
+        }
+
+        // check if debate has cons
+        if ($debate->cons) {
+            $debate->cons->transform(function ($con) {
+                return $this->transformArchiveDebate($con);
+            });
+        }
+
+        return $debate;
+    }
+
+
     /*** CLASS TO SELECT PROS SIDE ***/
     
     public function addProsChildDebate(Request $request, int $parentId)
@@ -488,6 +587,11 @@ class DebateController extends Controller
     {
         // explode tags from comma as array
         $debate->tags = json_decode($debate->tags);
+
+        // Exclude archived debates
+        if ($debate->archived) {
+            return new \stdClass; // Return an empty JSON object
+        }
 
         // check if debate has pros
         if ($debate->pros) {

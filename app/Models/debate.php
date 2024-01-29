@@ -22,6 +22,7 @@ class debate extends Model
         'backgroundinfo',
         'image',
         'imgname',
+        'archived',
         'isDebatePublic',
         'isType',
         'voting_allowed',

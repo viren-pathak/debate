@@ -40,6 +40,8 @@ Route::get('getdebatebyid/{id}/editdebate', [DebateController::class, 'editdebat
 Route::put('getdebatebyid/{id}/updatedebate', [DebateController::class, 'updatedebate']);//update debate
 Route::delete('getdebatebyid/{id}/deletedebate', [DebateController::class, 'destroydebate']);//delete debate
 Route::put('getdebatebyid/{id}/imageupload', [DebateController::class, 'debateimageupload']);// upload images
+Route::put('/debates/{debateId}/archive', [DebateController::class, 'archiveDebate']); //archive debate hierarchy
+Route::get('/debates/{debateId}/all-debates-with-archived', [DebateController::class, 'getAllDebatesWithArchived']);
 Route::get('/debates/tags', [DebateController::class, 'getAllTags']);//display all tags
 Route::get('/debates/tag/{tag}', [DebateController::class, 'getDebatesByTag']);//get debates by tag
 Route::get('getdebatebyid/{id}/displaydebate', [DebateController::class, 'getDebateByIdWithHierarchy']); // Display Debate by ID
