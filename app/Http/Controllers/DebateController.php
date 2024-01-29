@@ -1207,88 +1207,133 @@ class DebateController extends Controller
 
     /*** CLASS TO CREATE FILTER ON THE BASIS OF USER AND ACTIVITY ***/
 
-   // Inside your DebateController
+    public function activityFilter(Request $request, $debateId)
+    {
+        $userId = $request->input('user_id');
+        $activityType = $request->input('activity_type');
 
-public function activityFilter(Request $request, $debateId)
-{
-    $userId = $request->input('user_id');
-    $activityType = $request->input('activity_type');
+        // Find the root debate ID
+        $rootId = Debate::find($debateId)->root_id ?? $debateId;
 
-    // Find the root debate ID
-    $rootId = Debate::find($debateId)->root_id ?? $debateId;
+        // Get activities within the hierarchy
+        $activities = $this->getActivitiesRecursive($rootId, $userId, $activityType);
 
-    // Get activities within the hierarchy
-    $activities = $this->getActivitiesRecursive($rootId, $userId, $activityType);
+        // Sort all activities by time in descending order
+        usort($activities, function ($a, $b) {
+            return strtotime($b->created_at) - strtotime($a->created_at);
+        });
 
-    // Sort all activities by time in descending order
-    usort($activities, function ($a, $b) {
-        return strtotime($b->created_at) - strtotime($a->created_at);
-    });
-
-    return response()->json([
-        'status' => 200,
-        'user_id' => $userId,
-        'activity_type' => $activityType,
-        'activities' => $activities,
-    ], 200);
-}
-
-// Add this method to your DebateController
-public function getActivitiesRecursive($debateId, $userId, $activityType)
-{
-    $debate = Debate::find($debateId);
-
-    if (!$debate) {
-        return collect(); // Return an empty collection if the debate is not found
+        return response()->json([
+            'status' => 200,
+            'user_id' => $userId,
+            'activity_type' => $activityType,
+            'activities' => $activities,
+        ], 200);
     }
 
-    $activities = [];
+    // Add this method to your DebateController
+    public function getActivitiesRecursive($debateId, $userId, $activityType)
+    {
+        $debate = Debate::find($debateId);
 
-    if ($activityType === 'comments') {
-        // Retrieve all debates within the hierarchy
-        $allDebates = Debate::where('root_id', $debateId)->orWhere('id', $debateId)->get();
+        if (!$debate) {
+            return collect(); // Return an empty collection if the debate is not found
+        }
 
-        // Extract debate IDs from the collection
-        $debateIds = $allDebates->pluck('id')->toArray();
+        $activities = [];
 
-        // Retrieve comments for the specified user and the extracted debate IDs
-        $comments = DebateComment::whereIn('debate_id', $debateIds)
-            ->where('user_id', $userId)
-            ->orderBy('created_at', 'desc')
+        if ($activityType === 'comments') {
+            // Retrieve all debates within the hierarchy
+            $allDebates = Debate::where('root_id', $debateId)->orWhere('id', $debateId)->get();
+
+            // Extract debate IDs from the collection
+            $debateIds = $allDebates->pluck('id')->toArray();
+
+            // Retrieve comments for the specified user and the extracted debate IDs
+            $comments = DebateComment::whereIn('debate_id', $debateIds)
+                ->where('user_id', $userId)
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            foreach ($comments as $comment) {
+                $comment->type = 'comment';
+                array_unshift($activities, $comment); // Add at the beginning of the array
+            }
+        } elseif ($activityType === 'debates') {
+            // Filter debates based on user_id
+            if ($debate->user_id == $userId) {
+                $debate->type = 'debate';
+                array_unshift($activities, $debate);
+            }
+        } elseif ($activityType === 'votes') {
+            $votes = Vote::whereHas('debate', function ($query) use ($debateId) {
+                $query->where('root_id', $debateId)
+                    ->orWhereNull('root_id');
+            })
+                ->where('user_id', $userId)
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            foreach ($votes as $vote) {
+                $vote->type = 'vote';
+                array_unshift($activities, $vote);
+            }
+        }
+
+        foreach ($debate->children as $child) {
+            $childActivities = $this->getActivitiesRecursive($child->id, $userId, $activityType);
+            $activities = array_merge($activities, $childActivities);
+        }
+
+        return $activities;
+    }
+
+
+    /** CLASS TO CREATE USER PERSPECTIVE FOR VOTES **/
+
+    public function votesPerspective(Request $request, int $debateId)
+    {
+        // validate user_id from request
+        $userId = $request->input('user_id');
+
+        // validate debateId from request
+        $debate = Debate::find($debateId);
+
+        // if no debate found with requested debateId
+        if (!$debate) {
+            return response()->json([
+                'status' => 404,
+                'message' => "Debate not found!"
+            ], 404);
+        }
+
+        // Get all votes in the debate hierarchy, including votes for the root debate
+        $votes = DB::table('votes')
+            ->leftJoin('debate', 'votes.debate_id', '=', 'debate.id')
+            ->where(function ($query) use ($debate) {
+                $query->where('debate.id', $debate->id) // Votes for the current debate
+                    ->orWhere('debate.root_id', $debate->id); // Votes for child debates
+            })
+            ->when($userId !== null, function ($query) use ($userId) {
+                $query->where('votes.user_id', $userId);
+            })
+            ->select('votes.*')
             ->get();
 
-        foreach ($comments as $comment) {
-            $comment->type = 'comment';
-            array_unshift($activities, $comment); // Add at the beginning of the array
+        // Check if no votes should be displayed
+        if ($request->has('no_votes') && $request->boolean('no_votes')) {
+            return response()->json([
+                'status' => 200,
+                'votes' => [],
+                'message' => 'No votes to display',
+            ], 200);
         }
-    } elseif ($activityType === 'debates') {
-        // Filter debates based on user_id
-        if ($debate->user_id == $userId) {
-            $debate->type = 'debate';
-            array_unshift($activities, $debate);
-        }
-    } elseif ($activityType === 'votes') {
-        $votes = Vote::whereHas('debate', function ($query) use ($debateId) {
-            $query->where('root_id', $debateId)
-                ->orWhereNull('root_id');
-        })
-            ->where('user_id', $userId)
-            ->orderBy('created_at', 'desc')
-            ->get();
 
-        foreach ($votes as $vote) {
-            $vote->type = 'vote';
-            array_unshift($activities, $vote);
-        }
+        // successfull respnse
+        return response()->json([
+            'status' => 200,
+            'votes' => $votes,
+        ], 200);
     }
-
-    foreach ($debate->children as $child) {
-        $childActivities = $this->getActivitiesRecursive($child->id, $userId, $activityType);
-        $activities = array_merge($activities, $childActivities);
-    }
-
-    return $activities;
-}
-
 
 }
