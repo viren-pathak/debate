@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\Thanks;
 use App\Models\Tag;
 use App\Models\Bookmark;
+use App\Models\DebateRole;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
@@ -114,6 +115,9 @@ class DebateController extends Controller
             'isType' => $request->isType,
             'voting_allowed' => $request->voting_allowed ?? false,
         ]);
+
+        // Assign the role to the user
+        $this->assignRole($user->id, $storevar->id, 'owner');
 
         // Update user comments & contributions in users table
         $user->total_claims += 1; // Increment total claims
@@ -542,6 +546,9 @@ class DebateController extends Controller
             'root_id' => $rootId,
             'voting_allowed' => $parentDebate->voting_allowed ?? false, // Inherit voting_allowed from parent debate
         ]);
+
+        // Assign the role to the user
+        $this->assignRole($user->id, $rootId, 'suggester');
     
         // Update user comments & contributions in users table
         $user->total_claims += 1; // Increment total claims
@@ -663,6 +670,12 @@ class DebateController extends Controller
             'vote' => $request->vote,
         ]);
 
+        // Determine the root_id for the child debate
+        $rootId = $debate->root_id ?? $debateId;
+
+        // Assign the role to the user
+        $this->assignRole($user->id, $rootId, 'suggester');
+
         // save vote in debate
         $debate->votes()->save($vote);
 
@@ -751,6 +764,12 @@ class DebateController extends Controller
             'debate_id' => $debateId,
             'comment' => $request->comment,
         ]);
+
+        // Determine the root_id for the child debate
+        $rootId = $debate->root_id ?? $debateId;
+
+        // Assign the role to the user
+        $this->assignRole($user->id, $rootId, 'suggester');
 
         // Update user comments & contributions in users table
         $user->total_comments += 1; // Increment total commentss
@@ -1335,7 +1354,6 @@ class DebateController extends Controller
         ], 200);
     }
 
-    // Add this method to your DebateController
     public function getActivitiesRecursive($debateId, $userId, $activityType)
     {
         $debate = Debate::find($debateId);
@@ -1440,4 +1458,76 @@ class DebateController extends Controller
         ], 200);
     }
 
+
+    /*** CLASS TO ASSIGN ROLES TO USERS ON THE BASIS OF ACTIVITY ***/
+
+    private function assignRole($userId, $rootId, $role, $isOwner = false)
+    {
+        // Define the role hierarchy
+        $roleHierarchy = [
+            'owner' => 5,
+            'editor' => 4,
+            'writer' => 3,
+            'suggester' => 2,
+            'viewer' => 1,
+        ];
+
+        // Check if the role already exists for the user and root
+        $existingRole = DebateRole::where('user_id', $userId)
+            ->where('root_id', $rootId)
+            ->first();
+
+        // If the role exists, update it; otherwise, create a new one
+        if ($existingRole) {
+            if ($isOwner) {
+                // If the action is performed by the owner, update the role without hierarchy check
+                $existingRole->update(['role' => $role]);
+            } else {
+                // If the action is part of an activity, update the role if the new role is superior or equal
+                if ($roleHierarchy[$role] >= $roleHierarchy[$existingRole->role]) {
+                    $existingRole->update(['role' => $role]);
+                }
+            }
+        } else {
+            // If the role does not exist, create a new one
+            DebateRole::create([
+                'user_id' => $userId,
+                'root_id' => $rootId,
+                'role' => $role,
+            ]);
+        }
+    }
+
+    
+    /*** CLASS TO CHANGE USER ROLE IN DEBATE HIERRARCHY BY OWNER ONLY ***/
+
+    public function changeUserRole(Request $request, $debateId, $userId)
+    {
+        // Validate the request
+        $request->validate([
+            'role' => 'required|in:owner,editor,writer,suggester,viewer',
+        ]);
+    
+        // Check if the authenticated user is the owner of the debate hierarchy
+        $user = $request->user();
+
+        $isDebateOwner = DebateRole::where('user_id', $user->id)
+            ->where('root_id', $debateId) // Use root_id instead of debate_id
+            ->where('role', 'owner')
+            ->exists();
+    
+        if (!$isDebateOwner) {
+            return response()->json(['error' => 'You are not the owner of this debate hierarchy.'], 403);
+        }
+    
+        // Determine the root_id for the child debate
+        $debate = Debate::find($debateId);
+        $rootId = $debate->root_id ?? $debateId;
+    
+        // Update the user's role
+        $this->assignRole($userId, $rootId, $request->query('role'), true);
+    
+        return response()->json(['message' => 'User role updated successfully.']);
+    }
+   
 }

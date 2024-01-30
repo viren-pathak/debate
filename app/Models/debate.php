@@ -69,4 +69,9 @@ class debate extends Model
     {
         return $this->hasMany(DebateComment::class);
     }
+
+    public function roles()
+    {
+        return $this->hasMany(DebateRole::class);
+    }
 }
