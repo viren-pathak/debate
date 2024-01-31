@@ -100,6 +100,7 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function(){
 
 
     // DEBATE RELATED PROTECTED APIs
+    Route::put('/debates/move-child/{childDebateId}', [DebateController::class, 'moveChildDebate']); // Move child debate
     Route::post('/debates/{debateId}/addComments', [DebateController::class, 'addComment']); // Add Comments
     Route::put('/comments/{commentId}/editComment', [DebateController::class, 'editComment']); // Edit Comments
     Route::delete('/comments/{commentId}/hideComment', [DebateController::class, 'hideComment']); // hide Comments

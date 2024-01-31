@@ -562,7 +562,86 @@ class DebateController extends Controller
             'childDebate' => $childDebate,
         ], 200);
     }
+
     
+    /*** CLASS TO MOVE CHILD DEBATE TO OTHER PARENT DEBATE ***/
+        
+    public function moveChildDebate(Request $request, int $childDebateId)
+    {
+        // Validate input
+        $validator = Validator::make($request->all(), [
+            'newParentId' => 'required|integer|exists:debate,id',
+            'newSide' => 'required|in:pros,cons',
+        ]);
+
+        // response if validation failed
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 422,
+                'errors' => $validator->messages()
+            ], 422);
+        }
+
+        $user = auth('sanctum')->user(); // Retrieve the authenticated user
+
+        // return if user not registered or not valid user token
+        if (!$user) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'Unauthorized Access'
+            ], 401);
+        }
+
+        // Find the child debate
+        $childDebate = Debate::find($childDebateId);
+
+        // response if debate not found with requested ID
+        if (!$childDebate) {
+            return response()->json([
+                'status' => 404,
+                'message' => "Child Debate not found!"
+            ], 404);
+        }
+
+        // Check if the authenticated user is the creator of the child debate
+        if ($childDebate->user_id !== $user->id) {
+            return response()->json([
+                'status' => 403,
+                'message' => "You are not allowed to move this child debate since you are not the creator."
+            ], 403);
+        }
+
+        // Find the new parent debate
+        $newParentDebate = Debate::find($request->query('newParentId'));
+
+        // response if new parent debate not found with requested ID
+        if (!$newParentDebate) {
+            return response()->json([
+                'status' => 404,
+                'message' => "New Parent Debate not found!"
+            ], 404);
+        }
+
+        // Check if the child debate and new parent debate belong to the same hierarchy (root_id)
+        if ($childDebate->root_id !== $newParentDebate->root_id) {
+            return response()->json([
+                'status' => 400,
+                'message' => "Cannot move the child debate to a different hierarchy!"
+            ], 400);
+        }
+
+        // Update the child debate with the new parent and side
+        $childDebate->parent_id = $request->query('newParentId');
+        $childDebate->side = $request->query('newSide');
+        $childDebate->save();
+
+        // response after successfully moving child debate
+        return response()->json([
+            'status' => 200,
+            'message' => 'Child Debate moved successfully',
+            'childDebate' => $childDebate,
+        ], 200);
+    }
 
 
     /*** CLASS TO DISPLAY DEBATE BY ID ***/
