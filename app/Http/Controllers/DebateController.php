@@ -149,6 +149,14 @@ class DebateController extends Controller
         }
     }
 
+    // Helper function to check if the user is an owner/ editor or creator of the debate
+    private function isEditorOrCreator($userId, $debateId)
+    {
+        return DebateRole::where('user_id', $userId)
+            ->where('root_id', $debateId)
+            ->whereIn('role', ['owner', 'editor']) 
+            ->exists();
+    }
 
 
     /** CLASS TO FETCH ALL TAGS **/
@@ -233,8 +241,10 @@ class DebateController extends Controller
             ], 404);
         }
     
-        // Check if the authenticated user is the owner of the debate
-        if ($user->id !== $findbyidvar->user_id) {
+        // Check if the authenticated user is the owner, editor, or creator of the debate
+        $rootIdToCheck = $findbyidvar->root_id ?? $id; // Use root_id if available, otherwise use debateId
+
+        if ($user->id !== $findbyidvar->user_id && !$this->isEditorOrCreator($user->id, $rootIdToCheck)) {
             return response()->json([
                 'status' => 403,
                 'message' => "You do not have permission to edit this debate."
@@ -291,14 +301,16 @@ class DebateController extends Controller
                 ], 404);
             }
 
-            // Check if the authenticated user is the owner of the debate
-            if ($user->id !== $storevar->user_id) {
+            // Check if the authenticated user is the owner, editor, or creator of the debate
+            $rootIdToCheck = $storevar->root_id ?? $id; // Use root_id if available, otherwise use debateId
+
+            if ($user->id !== $storevar->user_id && !$this->isEditorOrCreator($user->id, $rootIdToCheck)) {
                 return response()->json([
                     'status' => 403,
                     'message' => "You do not have permission to update this debate."
                 ], 403);
             }
-    
+            
             if ($storevar) {
                 // Delete existing file
                 FileUploadService::delete($storevar->image);
@@ -403,12 +415,24 @@ class DebateController extends Controller
 
         // Check if the authenticated user is the owner of the debate
         $user = auth('sanctum')->user();
-        if (!$user || $user->id !== $debate->user_id) {
+
+        $rootIdToCheck = $debate->root_id ?? $debateId; // Use root_id if available, otherwise use debateId
+
+        if (!$user || ($user->id !== $debate->user_id && !$this->isEditorOrCreator($user->id, $rootIdToCheck))) {
             return response()->json([
                 'status' => 403,
                 'message' => 'Unauthorized to archive this debate!',
             ], 403);
         }
+
+        // Check if the user is trying to archive a root debate and is not the owner
+        if ($debate->parent_id === null && $user->id !== $debate->user_id) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Only the owner can archive the root debate!',
+            ], 403);
+        }
+
 
         // Archive the debate and its children
         $this->archiveDebateRecursive($debate);
@@ -603,8 +627,19 @@ class DebateController extends Controller
             ], 404);
         }
 
-        // Check if the authenticated user is the creator of the child debate
-        if ($childDebate->user_id !== $user->id) {
+        // Check if the provided debate is a root debate
+        if ($childDebate->root_id === null) {
+            return response()->json([
+                'status' => 400,
+                'message' => "You cannot move the root debate."
+            ], 400);
+        }
+
+        // Check if the authenticated user is the owner, editor, or creator of the debate
+        $rootIdToCheck = $childDebate->root_id ?? $id; // Use root_id if available, otherwise use debateId
+
+        // Check if the authenticated user is the owner editor or creator of the child debate
+        if ($user->id !== $childDebate->user_id && !$this->isEditorOrCreator($user->id, $rootIdToCheck)) {
             return response()->json([
                 'status' => 403,
                 'message' => "You are not allowed to move this child debate since you are not the creator."
@@ -623,7 +658,7 @@ class DebateController extends Controller
         }
 
         // Check if the child debate and new parent debate belong to the same hierarchy (root_id)
-        if ($childDebate->root_id !== $newParentDebate->root_id) {
+        if ($childDebate->root_id !== ($newParentDebate->root_id ?? $newParentDebate->id)) {
             return response()->json([
                 'status' => 400,
                 'message' => "Cannot move the child debate to a different hierarchy!"
