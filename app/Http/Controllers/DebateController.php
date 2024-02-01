@@ -22,37 +22,12 @@ use Illuminate\Support\Collection;
 
 class DebateController extends Controller
 {
-    /** CLASS TO DISPLAY ALL DEBATES ***/
 
-    public function getalldebates()
-    {
-        // Get all debates where parent_id is null (only return root debate)
-        $debates = Debate::whereNull('parent_id')->get();
-
-        // Transform the debates into a simplified structure
-        $transformedDebates = $debates->map(function ($debate) {
-            return $this->transformMainDebate($debate);
-        })->filter(); // Remove null values from the collection
-
-        // return all root debates
-        return response()->json([
-            'status' => 200,
-            'mainDebates' => $transformedDebates,
-        ], 200);
-    }
-
-    private function transformMainDebate($debate)
-    {
-        // explode tags from comma as array
-        $debate->tags = json_decode($debate->tags);
-
-            // Exclude archived debates
-        if ($debate->archived) {
-            return null; // Return an empty JSON object
-        }
-
-        return $debate;
-    }
+/********************************************************************* 
+* 
+*  DEBATE RELATED METHODS
+* 
+*********************************************************************/
 
 
     /** CLASS TO CREATE DEBATE ***/
@@ -149,72 +124,6 @@ class DebateController extends Controller
         }
     }
 
-    // Helper function to check if the user is an owner/ editor or creator of the debate
-    private function isEditorOrCreator($userId, $debateId)
-    {
-        return DebateRole::where('user_id', $userId)
-            ->where('root_id', $debateId)
-            ->whereIn('role', ['owner', 'editor']) 
-            ->exists();
-    }
-
-
-    /** CLASS TO FETCH ALL TAGS **/
-
-    public function getAllTags()
-    {
-        // get all tags list
-        $tags = Tag::all();
-
-        // get all tags with name and images
-        $transformedTags = $tags->map(function ($tag) {
-            return [
-                'name' => $tag->tag,
-                'image' => $tag->image ? asset('storage/' . $tag->image) : null,
-            ];
-        });
-    
-        // return after succesfull response
-        return response()->json([
-            'status' => 200,
-            'tags' => $transformedTags,
-        ], 200);
-    }
-    
-
-    /** CLASS TO FETCH DEBATES BY TAG **/
-
-    public function getDebatesByTag($tag)
-    {
-        // find debates by tag (without case sensitive)
-        $debates = Debate::where(function($query) use ($tag) {
-            $tagArray = json_encode($tag);
-            $query->where('tags', 'like', '%"'. $tag .'"%'); // Look for exact match within the JSON string
-            $query->orWhere(function($query) use ($tagArray) {
-                $query->whereJsonContains('tags', $tagArray); // Look for match within the JSON array
-            });
-        })->get();
-
-        if ($debates->count() > 0) {
-            // Decode the JSON-encoded tags for each debate
-            $debates->transform(function ($debate) {
-                $debate->tags = json_decode($debate->tags);
-                return $debate;
-            });
-
-            // return debate if found by tag or return else when not any debate with specific tag
-            return response()->json([
-                'status' => 200,
-                'debates' => $debates,
-            ], 200);
-        } else {
-            return response()->json([
-                'status' => 404,
-                'message' => 'No Debates found for the specified tag',
-            ], 404);
-        }
-    }
-
 
     /** CLASS TO EDIT DEBATE BY ID ***/
 
@@ -258,7 +167,6 @@ class DebateController extends Controller
         ], 200);
     }
     
-
 
     /** CLASS TO UPDATE DEBATE BY ID ***/
 
@@ -455,6 +363,92 @@ class DebateController extends Controller
     }
 
 
+    /** CLASS TO DISPLAY ALL DEBATES ***/
+
+    public function getalldebates()
+    {
+        // Get all debates where parent_id is null (only return root debate)
+        $debates = Debate::whereNull('parent_id')->get();
+
+        // Transform the debates into a simplified structure
+        $transformedDebates = $debates->map(function ($debate) {
+            return $this->transformMainDebate($debate);
+        })->filter(); // Remove null values from the collection
+
+        // return all root debates
+        return response()->json([
+            'status' => 200,
+            'mainDebates' => $transformedDebates,
+        ], 200);
+    }
+
+    private function transformMainDebate($debate)
+    {
+        // explode tags from comma as array
+        $debate->tags = json_decode($debate->tags);
+
+            // Exclude archived debates
+        if ($debate->archived) {
+            return null; // Return an empty JSON object
+        }
+
+        return $debate;
+    }
+
+
+    /*** CLASS TO DISPLAY DEBATE BY ID WITHOUT ARCHIVED DEBATES ***/
+
+    public function getDebateByIdWithHierarchy($id)
+    {
+        // Find the specified debate by ID with its pros and cons
+        $debate = Debate::with(['pros', 'cons'])->find($id);
+
+        // response if debate with requested ID did not found
+        if (!$debate) {
+            return response()->json([
+                'status' => 404,
+                'message' => 'Debate not found!'
+            ], 404);
+        }
+
+        // Transform the debate into a nested structure
+        $transformedDebate = $this->transformDebate($debate);
+
+        // response of successfull
+        return response()->json([
+            'status' => 200,
+            'debate' => $transformedDebate,
+        ], 200);
+    }
+
+    private function transformDebate($debate)
+    {
+        // explode tags from comma as array
+        $debate->tags = json_decode($debate->tags);
+
+        // Exclude archived debates
+        if ($debate->archived) {
+            return new \stdClass; // Return an empty JSON object
+        }
+
+        // check if debate has pros
+        if ($debate->pros) {
+            $debate->pros->transform(function ($pro) {
+                return $this->transformDebate($pro);
+            });
+        }
+
+        // check if debate has cons
+        if ($debate->cons) {
+            $debate->cons->transform(function ($con) {
+                return $this->transformDebate($con);
+            });
+        }
+
+        return $debate;
+    }
+
+
     /*** CLASS TO DISPLAY ALL DEBATES WITH ARCHIVED DEBATES ***/
 
     public function getAllDebatesWithArchived($id)
@@ -502,6 +496,97 @@ class DebateController extends Controller
 
         return $debate;
     }
+
+
+    /*** CLASS TO CREATE FILTER ON THE BASIS OF USER AND ACTIVITY ***/
+
+    public function activityFilter(Request $request, $debateId)
+    {
+        $userId = $request->input('user_id');
+        $activityType = $request->input('activity_type');
+
+        // Find the root debate ID
+        $rootId = Debate::find($debateId)->root_id ?? $debateId;
+
+        // Get activities within the hierarchy
+        $activities = $this->getActivitiesRecursive($rootId, $userId, $activityType);
+
+        // Sort all activities by time in descending order
+        usort($activities, function ($a, $b) {
+            return strtotime($b->created_at) - strtotime($a->created_at);
+        });
+
+        return response()->json([
+            'status' => 200,
+            'user_id' => $userId,
+            'activity_type' => $activityType,
+            'activities' => $activities,
+        ], 200);
+    }
+
+    public function getActivitiesRecursive($debateId, $userId, $activityType)
+    {
+        $debate = Debate::find($debateId);
+
+        if (!$debate) {
+            return collect(); // Return an empty collection if the debate is not found
+        }
+
+        $activities = [];
+
+        if ($activityType === 'comments') {
+            // Retrieve all debates within the hierarchy
+            $allDebates = Debate::where('root_id', $debateId)->orWhere('id', $debateId)->get();
+
+            // Extract debate IDs from the collection
+            $debateIds = $allDebates->pluck('id')->toArray();
+
+            // Retrieve comments for the specified user and the extracted debate IDs
+            $comments = DebateComment::whereIn('debate_id', $debateIds)
+                ->where('user_id', $userId)
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            foreach ($comments as $comment) {
+                $comment->type = 'comment';
+                array_unshift($activities, $comment); // Add at the beginning of the array
+            }
+        } elseif ($activityType === 'debates') {
+            // Filter debates based on user_id
+            if ($debate->user_id == $userId) {
+                $debate->type = 'debate';
+                array_unshift($activities, $debate);
+            }
+        } elseif ($activityType === 'votes') {
+            $votes = Vote::whereHas('debate', function ($query) use ($debateId) {
+                $query->where('root_id', $debateId)
+                    ->orWhereNull('root_id');
+            })
+                ->where('user_id', $userId)
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            foreach ($votes as $vote) {
+                $vote->type = 'vote';
+                array_unshift($activities, $vote);
+            }
+        }
+
+        foreach ($debate->children as $child) {
+            $childActivities = $this->getActivitiesRecursive($child->id, $userId, $activityType);
+            $activities = array_merge($activities, $childActivities);
+        }
+
+        return $activities;
+    }
+
+
+
+/********************************************************************* 
+* 
+*  CHILD DEBATE RELATED METHODS
+* 
+*********************************************************************/
 
 
     /*** CLASS TO SELECT PROS SIDE ***/
@@ -679,170 +764,78 @@ class DebateController extends Controller
     }
 
 
-    /*** CLASS TO DISPLAY DEBATE BY ID ***/
 
-    public function getDebateByIdWithHierarchy($id)
+/********************************************************************* 
+* 
+*  TAG RELATED METHODS
+* 
+*********************************************************************/
+
+
+    /** CLASS TO FETCH ALL TAGS **/
+
+    public function getAllTags()
     {
-        // Find the specified debate by ID with its pros and cons
-        $debate = Debate::with(['pros', 'cons'])->find($id);
+        // get all tags list
+        $tags = Tag::all();
 
-        // response if debate with requested ID did not found
-        if (!$debate) {
-            return response()->json([
-                'status' => 404,
-                'message' => 'Debate not found!'
-            ], 404);
-        }
-
-        // Transform the debate into a nested structure
-        $transformedDebate = $this->transformDebate($debate);
-
-        // response of successfull
-        return response()->json([
-            'status' => 200,
-            'debate' => $transformedDebate,
-        ], 200);
-    }
-
-    private function transformDebate($debate)
-    {
-        // explode tags from comma as array
-        $debate->tags = json_decode($debate->tags);
-
-        // Exclude archived debates
-        if ($debate->archived) {
-            return new \stdClass; // Return an empty JSON object
-        }
-
-        // check if debate has pros
-        if ($debate->pros) {
-            $debate->pros->transform(function ($pro) {
-                return $this->transformDebate($pro);
-            });
-        }
-
-        // check if debate has cons
-        if ($debate->cons) {
-            $debate->cons->transform(function ($con) {
-                return $this->transformDebate($con);
-            });
-        }
-
-        return $debate;
-    }
-
-
-    /*** CLASS TO VOTE DEBATES ***/
-
-    public function vote(Request $request, int $debateId)
-    {
-        // validate user input
-        $validator = Validator::make($request->all(), [
-            'vote' => 'required|integer|between:1,5',
-        ]);
-
-        // response after validation fails
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => 422,
-                'errors' => $validator->messages()
-            ], 422);
-        }
-
-        $user = auth('sanctum')->user(); // Retrieve the authenticated user
-
-        // return if user is not authorized
-        if (!$user) {
-            return response()->json([
-                'status' => 401,
-                'message' => 'Unauthorized Access'
-            ], 401);
-        }
-        
-        // find debate by requested ID
-        $debate = Debate::find($debateId);
-
-        // Response if debate not found with requested ID
-        if (!$debate) {
-            return response()->json([
-                'status' => 404,
-                'message' => "Debate not found!"
-            ], 404);
-        }
-
-        // check if voting allowed or not on root debate
-        if (!$debate->voting_allowed) {
-            return response()->json([
-                'status' => 403,
-                'message' => "Voting is not allowed for this debate."
-            ], 403);
-        }
-
-        // add vote in debate
-        $vote = new Vote([
-            'user_id' => $user->id,
-            'vote' => $request->vote,
-        ]);
-
-        // Determine the root_id for the child debate
-        $rootId = $debate->root_id ?? $debateId;
-
-        // Assign the role to the user
-        $this->assignRole($user->id, $rootId, 'suggester');
-
-        // save vote in debate
-        $debate->votes()->save($vote);
-
-        // Increment total_votes column
-        $debate->increment('total_votes');
-
-        // Update user comments & contributions in users table
-        $user->total_votes += 1; // Increment total votes
-        $user->total_contributions += 1; // Increment total contributions
-        $user->save();
-
-        // response after successful voting
-        return response()->json([
-            'status' => 200,
-            'message' => 'Vote recorded successfully',
-        ], 200);
-    }
-
-
-    /*** CLASS TO GET VOTE COUNT ***/
-
-    public function getVoteCounts($debateId)
-    {
-        // find debate by requested ID
-        $debate = Debate::find($debateId);
-
-        // return if no debate fpound by requested ID
-        if (!$debate) {
-            return response()->json([
-                'status' => 404,
-                'message' => "Debate not found!"
-            ], 404);
-        }
-
-        // get vote count from database
-        $voteCounts = $debate->votes()
-            ->select('vote', DB::raw('COUNT(*) as count'))
-            ->groupBy('vote')
-            ->get();
-
-        // Create an array with vote counts for all possible votes (1 to 5)
-        $allVoteCounts = array_fill_keys(range(1, 5), 0);
-
-        // Merge the actual vote counts into the array
-        $voteCounts->each(function ($voteCount) use (&$allVoteCounts) {
-            $allVoteCounts[$voteCount->vote] = $voteCount->count;
+        // get all tags with name and images
+        $transformedTags = $tags->map(function ($tag) {
+            return [
+                'name' => $tag->tag,
+                'image' => $tag->image ? asset('storage/' . $tag->image) : null,
+            ];
         });
-
+    
+        // return after succesfull response
         return response()->json([
             'status' => 200,
-            'voteCounts' => $allVoteCounts,
+            'tags' => $transformedTags,
         ], 200);
     }
+    
+
+    /** CLASS TO FETCH DEBATES BY TAG **/
+
+    public function getDebatesByTag($tag)
+    {
+        // find debates by tag (without case sensitive)
+        $debates = Debate::where(function($query) use ($tag) {
+            $tagArray = json_encode($tag);
+            $query->where('tags', 'like', '%"'. $tag .'"%'); // Look for exact match within the JSON string
+            $query->orWhere(function($query) use ($tagArray) {
+                $query->whereJsonContains('tags', $tagArray); // Look for match within the JSON array
+            });
+        })->get();
+
+        if ($debates->count() > 0) {
+            // Decode the JSON-encoded tags for each debate
+            $debates->transform(function ($debate) {
+                $debate->tags = json_decode($debate->tags);
+                return $debate;
+            });
+
+            // return debate if found by tag or return else when not any debate with specific tag
+            return response()->json([
+                'status' => 200,
+                'debates' => $debates,
+            ], 200);
+        } else {
+            return response()->json([
+                'status' => 404,
+                'message' => 'No Debates found for the specified tag',
+            ], 404);
+        }
+    }
+
+
+
+
+/********************************************************************* 
+* 
+*  COMMENT RELATED METHODS
+* 
+*********************************************************************/
 
 
     /*** CLASS TO ADD COMMENTS IN DEBATE ***/
@@ -860,7 +853,7 @@ class DebateController extends Controller
                 'message' => "Debate not found!"
             ], 404);
         }
-        
+
         // Validate user input
         $validator = Validator::make($request->all(), [
             'comment' => 'required|string',
@@ -1016,162 +1009,277 @@ class DebateController extends Controller
     }
 
 
-    /*** CLASS TO ADD THANKS TO AUTHOR IN DEBATE  ***/
 
-    public function giveThanks(Request $request, int $debateId)
+
+/********************************************************************* 
+* 
+*  VOTE RELATED METHODS
+* 
+*********************************************************************/
+
+
+    /*** CLASS TO VOTE DEBATES ***/
+
+    public function vote(Request $request, int $debateId)
     {
+        // validate user input
+        $validator = Validator::make($request->all(), [
+            'vote' => 'required|integer|between:1,5',
+        ]);
+
+        // response after validation fails
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 422,
+                'errors' => $validator->messages()
+            ], 422);
+        }
+
         $user = auth('sanctum')->user(); // Retrieve the authenticated user
 
-        // return if user not authorized
+        // return if user is not authorized
         if (!$user) {
             return response()->json([
                 'status' => 401,
                 'message' => 'Unauthorized Access'
             ], 401);
         }
-    
-        // find debate by debate ID
+        
+        // find debate by requested ID
         $debate = Debate::find($debateId);
 
+        // Response if debate not found with requested ID
         if (!$debate) {
             return response()->json([
                 'status' => 404,
-                'message' => 'Debate not found!',
+                'message' => "Debate not found!"
             ], 404);
         }
 
-        // get owner of debate
-        $debateOwner = $debate->user;
-    
-        // Check if the user has already given thanks
-        $hasThanks = Thanks::where('user_id', $user->id)
-            ->where('debate_id', $debate->id)
-            ->exists();
-    
-        if ($hasThanks) {
-            // Remove thanks
-            Thanks::where('user_id', $user->id)
-                ->where('debate_id', $debate->id)
-                ->delete();
-    
-            // Decrement total_received_thanks
-            $debateOwner->decrement('total_received_thanks');
-            $message = 'Thanks removed successfully.';
-        } else {
-            // Add thanks
-            Thanks::create([
-                'user_id' => $user->id,
-                'debate_id' => $debate->id,
-            ]);
-    
-            // Increment total_received_thanks
-            $debateOwner->increment('total_received_thanks');
-            $message = 'Thanks recorded successfully.';
+        // check if voting allowed or not on root debate
+        if (!$debate->voting_allowed) {
+            return response()->json([
+                'status' => 403,
+                'message' => "Voting is not allowed for this debate."
+            ], 403);
         }
-    
-        // return after successfull response
+
+        // add vote in debate
+        $vote = new Vote([
+            'user_id' => $user->id,
+            'vote' => $request->vote,
+        ]);
+
+        // Determine the root_id for the child debate
+        $rootId = $debate->root_id ?? $debateId;
+
+        // Assign the role to the user
+        $this->assignRole($user->id, $rootId, 'suggester');
+
+        // save vote in debate
+        $debate->votes()->save($vote);
+
+        // Increment total_votes column
+        $debate->increment('total_votes');
+
+        // Update user comments & contributions in users table
+        $user->total_votes += 1; // Increment total votes
+        $user->total_contributions += 1; // Increment total contributions
+        $user->save();
+
+        // response after successful voting
         return response()->json([
             'status' => 200,
-            'message' => $message,
-            'total_received_thanks' => $debateOwner->total_received_thanks,
+            'message' => 'Vote recorded successfully',
         ], 200);
     }
 
 
-    /*** CLASS TO SEARCH DEBATE BY TAG, TITLE, THESIS ***/
+    /*** CLASS TO GET VOTE COUNT ***/
 
-    public function searchDebates(Request $request)
+    public function getVoteCounts($debateId)
     {
-        // validate user input
-        $validator = Validator::make($request->all(), [
-            'search_query' => 'required|string|max:191',
-        ]);
-    
-        // return if validation fails
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => 422,
-                'errors' => $validator->messages(),
-            ], 422);
-        }
-    
-        // search words by user input
-        $searchQuery = $request->search_query;
-    
-        $mainDebates = Debate::whereNull('parent_id') // Only select main debates
-            ->where(function ($query) use ($searchQuery) {
-                $query->where('title', 'LIKE', '%' . $searchQuery . '%') // Use LIKE for case-insensitive search
-                    ->orWhere('thesis', 'LIKE', '%' . $searchQuery . '%')
-                    ->orWhere(function ($query) use ($searchQuery) {
-                        // Case-insensitive search within JSON array
-                        $query->where(DB::raw('JSON_UNQUOTE(tags)'), 'LIKE', '%' . $searchQuery . '%');
-                    });
-            })
-            ->get();
-    
-        if ($mainDebates->count() > 0) {
-            // Transform the main debates into a simplified structure
-            $transformedMainDebates = $mainDebates->map(function ($mainDebate) {
-                return $this->transformMainDebate($mainDebate);
-            });
-    
-        // return response after search query excecution
-        return response()->json([
-                'status' => 200,
-                'debates' => $transformedMainDebates,
-            ], 200);
-        } else {
+        // find debate by requested ID
+        $debate = Debate::find($debateId);
+
+        // return if no debate fpound by requested ID
+        if (!$debate) {
             return response()->json([
                 'status' => 404,
-                'message' => 'No Debates found for the specified search query',
+                'message' => "Debate not found!"
             ], 404);
+        }
+
+        // get vote count from database
+        $voteCounts = $debate->votes()
+            ->select('vote', DB::raw('COUNT(*) as count'))
+            ->groupBy('vote')
+            ->get();
+
+        // Create an array with vote counts for all possible votes (1 to 5)
+        $allVoteCounts = array_fill_keys(range(1, 5), 0);
+
+        // Merge the actual vote counts into the array
+        $voteCounts->each(function ($voteCount) use (&$allVoteCounts) {
+            $allVoteCounts[$voteCount->vote] = $voteCount->count;
+        });
+
+        return response()->json([
+            'status' => 200,
+            'voteCounts' => $allVoteCounts,
+        ], 200);
+    }
+
+
+    /** CLASS TO CREATE USER PERSPECTIVE FOR VOTES **/
+
+    public function votesPerspective(Request $request, int $debateId)
+    {
+        // validate user_id from request
+        $userId = $request->input('user_id');
+
+        // validate debateId from request
+        $debate = Debate::find($debateId);
+
+        // if no debate found with requested debateId
+        if (!$debate) {
+            return response()->json([
+                'status' => 404,
+                'message' => "Debate not found!"
+            ], 404);
+        }
+
+        // Get all votes in the debate hierarchy, including votes for the root debate
+        $votes = DB::table('votes')
+            ->leftJoin('debate', 'votes.debate_id', '=', 'debate.id')
+            ->where(function ($query) use ($debate) {
+                $query->where('debate.id', $debate->id) // Votes for the current debate
+                    ->orWhere('debate.root_id', $debate->id); // Votes for child debates
+            })
+            ->when($userId !== null, function ($query) use ($userId) {
+                $query->where('votes.user_id', $userId);
+            })
+            ->select('votes.*')
+            ->get();
+
+        // Check if no votes should be displayed
+        if ($request->has('no_votes') && $request->boolean('no_votes')) {
+            return response()->json([
+                'status' => 200,
+                'votes' => [],
+                'message' => 'No votes to display',
+            ], 200);
+        }
+
+        // successfull respnse
+        return response()->json([
+            'status' => 200,
+            'votes' => $votes,
+        ], 200);
+    }
+
+
+    
+
+/********************************************************************* 
+* 
+*  ROLE RELATED METHODS
+* 
+*********************************************************************/
+
+
+    /*** CLASS TO ASSIGN ROLES TO USERS ON THE BASIS OF ACTIVITY ***/
+
+    private function assignRole($userId, $rootId, $role, $isOwner = false)
+    {
+        // Define the role hierarchy
+        $roleHierarchy = [
+            'owner' => 5,
+            'editor' => 4,
+            'writer' => 3,
+            'suggester' => 2,
+            'viewer' => 1,
+        ];
+
+        // Check if the role already exists for the user and root
+        $existingRole = DebateRole::where('user_id', $userId)
+            ->where('root_id', $rootId)
+            ->first();
+
+        // If the role exists, update it; otherwise, create a new one
+        if ($existingRole) {
+            if ($isOwner) {
+                // If the action is performed by the owner, update the role without hierarchy check
+                $existingRole->update(['role' => $role]);
+            } else {
+                // If the action is part of an activity, update the role if the new role is superior or equal
+                if ($roleHierarchy[$role] >= $roleHierarchy[$existingRole->role]) {
+                    $existingRole->update(['role' => $role]);
+                }
+            }
+        } else {
+            // If the role does not exist, create a new one
+            DebateRole::create([
+                'user_id' => $userId,
+                'root_id' => $rootId,
+                'role' => $role,
+            ]);
         }
     }
 
     
-    /*** CLASS TO GET LIST OF TOP CONTRIBUTORS IN FEATURED PAGE ***/
+    /*** CLASS TO CHANGE USER ROLE IN DEBATE HIERRARCHY BY OWNER ONLY ***/
 
-    public function topContributors()
+    public function changeUserRole(Request $request, $debateId, $userId)
     {
-        // Fetch top contributors in descending order based on total contributions
-        $topContributors = User::orderByDesc('total_contributions')
-            ->select('id', 'username', 'total_contributions')
-            ->get();
+        // Validate the request
+        $request->validate([
+            'role' => 'required|in:owner,editor,writer,suggester,viewer',
+        ]);
+    
+        // Check if the authenticated user is the owner of the debate hierarchy
+        $user = $request->user();
 
-        // return list of contributors
-        return response()->json([
-            'status' => 200,
-            'topContributors' => $topContributors,
-        ], 200);
+        $isDebateOwner = DebateRole::where('user_id', $user->id)
+            ->where('root_id', $debateId) // Use root_id instead of debate_id
+            ->where('role', 'owner')
+            ->exists();
+    
+        // return if requested user is not owner of debate hierarchy
+        if (!$isDebateOwner) {
+            return response()->json(['error' => 'You are not the owner of this debate hierarchy.'], 403);
+        }
+    
+        // Determine the root_id for the child debate
+        $debate = Debate::find($debateId);
+        $rootId = $debate->root_id ?? $debateId;
+    
+        // Update the user's role
+        $this->assignRole($userId, $rootId, $request->query('role'), true);
+    
+        // return after successful updation
+        return response()->json(['message' => 'User role updated successfully.']);
     }
 
 
-    /*** CLASS TO GET OVERALL STATS FOR HOME PAGE ***/
-
-    public function overallStats()
+    // Helper function to check if the user is an owner/ editor or creator of the debate
+    private function isEditorOrCreator($userId, $debateId)
     {
-        // Fetch overall contributions (sum of total contributions of all users)
-        $overallContributions = (int) User::sum('total_contributions');
-    
-        // Fetch overall votes (sum of total votes of all users)
-        $overallVotes = (int) Vote::count();
-    
-        // Fetch overall parent debates (total parent debates only excluding child debates)
-        $overallParentDebates = (int) Debate::whereNull('parent_id')->count();
-    
-        // Fetch overall claims (sum of total claims from all users)
-        $overallClaims = (int) User::sum('total_claims');
-    
-        // return all stats
-        return response()->json([
-            'status' => 200,
-            'overallContributions' => $overallContributions,
-            'overallVotes' => $overallVotes,
-            'overallParentDebates' => $overallParentDebates,
-            'overallClaims' => $overallClaims,
-        ], 200);
+        return DebateRole::where('user_id', $userId)
+            ->where('root_id', $debateId)
+            ->whereIn('role', ['owner', 'editor']) 
+            ->exists();
     }
-    
+
+
+
+
+/********************************************************************* 
+* 
+*  BOOKMARK RELATED METHODS
+* 
+*********************************************************************/
+
 
     /*** CLASS TO BOOKMARK ON DEBATES ***/
 
@@ -1269,7 +1377,76 @@ class DebateController extends Controller
        ], 200);
    }
    
-   
+
+
+
+/********************************************************************* 
+* 
+*  USER RELATED METHODS
+* 
+*********************************************************************/
+
+
+    /*** CLASS TO ADD THANKS TO AUTHOR IN DEBATE  ***/
+
+    public function giveThanks(Request $request, int $debateId)
+    {
+        $user = auth('sanctum')->user(); // Retrieve the authenticated user
+
+        // return if user not authorized
+        if (!$user) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'Unauthorized Access'
+            ], 401);
+        }
+    
+        // find debate by debate ID
+        $debate = Debate::find($debateId);
+
+        if (!$debate) {
+            return response()->json([
+                'status' => 404,
+                'message' => 'Debate not found!',
+            ], 404);
+        }
+
+        // get owner of debate
+        $debateOwner = $debate->user;
+    
+        // Check if the user has already given thanks
+        $hasThanks = Thanks::where('user_id', $user->id)
+            ->where('debate_id', $debate->id)
+            ->exists();
+    
+        if ($hasThanks) {
+            // Remove thanks
+            Thanks::where('user_id', $user->id)
+                ->where('debate_id', $debate->id)
+                ->delete();
+    
+            // Decrement total_received_thanks
+            $debateOwner->decrement('total_received_thanks');
+            $message = 'Thanks removed successfully.';
+        } else {
+            // Add thanks
+            Thanks::create([
+                'user_id' => $user->id,
+                'debate_id' => $debate->id,
+            ]);
+    
+            // Increment total_received_thanks
+            $debateOwner->increment('total_received_thanks');
+            $message = 'Thanks recorded successfully.';
+        }
+    
+        // return after successfull response
+        return response()->json([
+            'status' => 200,
+            'message' => $message,
+            'total_received_thanks' => $debateOwner->total_received_thanks,
+        ], 200);
+    }
 
 
     /*** CLASS TO GET LIST OF MY CLAIMS OF SPECIFIC DEBATE ***/
@@ -1424,7 +1601,6 @@ class DebateController extends Controller
             'contributions' => $contributions,
         ], 200);
     }
-    
 
 
     /*** CLASS TO GET LIST OF COMMENTS IN SPECIFIC DEBATE ***/
@@ -1462,206 +1638,108 @@ class DebateController extends Controller
     }    
 
 
-    /*** CLASS TO CREATE FILTER ON THE BASIS OF USER AND ACTIVITY ***/
 
-    public function activityFilter(Request $request, $debateId)
+
+/********************************************************************* 
+* 
+*  HOME PAGE RELATED METHODS
+* 
+*********************************************************************/
+
+
+    /*** CLASS TO SEARCH DEBATE BY TAG, TITLE, THESIS ***/
+
+    public function searchDebates(Request $request)
     {
-        $userId = $request->input('user_id');
-        $activityType = $request->input('activity_type');
-
-        // Find the root debate ID
-        $rootId = Debate::find($debateId)->root_id ?? $debateId;
-
-        // Get activities within the hierarchy
-        $activities = $this->getActivitiesRecursive($rootId, $userId, $activityType);
-
-        // Sort all activities by time in descending order
-        usort($activities, function ($a, $b) {
-            return strtotime($b->created_at) - strtotime($a->created_at);
-        });
-
-        return response()->json([
-            'status' => 200,
-            'user_id' => $userId,
-            'activity_type' => $activityType,
-            'activities' => $activities,
-        ], 200);
-    }
-
-    public function getActivitiesRecursive($debateId, $userId, $activityType)
-    {
-        $debate = Debate::find($debateId);
-
-        if (!$debate) {
-            return collect(); // Return an empty collection if the debate is not found
-        }
-
-        $activities = [];
-
-        if ($activityType === 'comments') {
-            // Retrieve all debates within the hierarchy
-            $allDebates = Debate::where('root_id', $debateId)->orWhere('id', $debateId)->get();
-
-            // Extract debate IDs from the collection
-            $debateIds = $allDebates->pluck('id')->toArray();
-
-            // Retrieve comments for the specified user and the extracted debate IDs
-            $comments = DebateComment::whereIn('debate_id', $debateIds)
-                ->where('user_id', $userId)
-                ->orderBy('created_at', 'desc')
-                ->get();
-
-            foreach ($comments as $comment) {
-                $comment->type = 'comment';
-                array_unshift($activities, $comment); // Add at the beginning of the array
-            }
-        } elseif ($activityType === 'debates') {
-            // Filter debates based on user_id
-            if ($debate->user_id == $userId) {
-                $debate->type = 'debate';
-                array_unshift($activities, $debate);
-            }
-        } elseif ($activityType === 'votes') {
-            $votes = Vote::whereHas('debate', function ($query) use ($debateId) {
-                $query->where('root_id', $debateId)
-                    ->orWhereNull('root_id');
-            })
-                ->where('user_id', $userId)
-                ->orderBy('created_at', 'desc')
-                ->get();
-
-            foreach ($votes as $vote) {
-                $vote->type = 'vote';
-                array_unshift($activities, $vote);
-            }
-        }
-
-        foreach ($debate->children as $child) {
-            $childActivities = $this->getActivitiesRecursive($child->id, $userId, $activityType);
-            $activities = array_merge($activities, $childActivities);
-        }
-
-        return $activities;
-    }
-
-
-    /** CLASS TO CREATE USER PERSPECTIVE FOR VOTES **/
-
-    public function votesPerspective(Request $request, int $debateId)
-    {
-        // validate user_id from request
-        $userId = $request->input('user_id');
-
-        // validate debateId from request
-        $debate = Debate::find($debateId);
-
-        // if no debate found with requested debateId
-        if (!$debate) {
-            return response()->json([
-                'status' => 404,
-                'message' => "Debate not found!"
-            ], 404);
-        }
-
-        // Get all votes in the debate hierarchy, including votes for the root debate
-        $votes = DB::table('votes')
-            ->leftJoin('debate', 'votes.debate_id', '=', 'debate.id')
-            ->where(function ($query) use ($debate) {
-                $query->where('debate.id', $debate->id) // Votes for the current debate
-                    ->orWhere('debate.root_id', $debate->id); // Votes for child debates
-            })
-            ->when($userId !== null, function ($query) use ($userId) {
-                $query->where('votes.user_id', $userId);
-            })
-            ->select('votes.*')
-            ->get();
-
-        // Check if no votes should be displayed
-        if ($request->has('no_votes') && $request->boolean('no_votes')) {
-            return response()->json([
-                'status' => 200,
-                'votes' => [],
-                'message' => 'No votes to display',
-            ], 200);
-        }
-
-        // successfull respnse
-        return response()->json([
-            'status' => 200,
-            'votes' => $votes,
-        ], 200);
-    }
-
-
-    /*** CLASS TO ASSIGN ROLES TO USERS ON THE BASIS OF ACTIVITY ***/
-
-    private function assignRole($userId, $rootId, $role, $isOwner = false)
-    {
-        // Define the role hierarchy
-        $roleHierarchy = [
-            'owner' => 5,
-            'editor' => 4,
-            'writer' => 3,
-            'suggester' => 2,
-            'viewer' => 1,
-        ];
-
-        // Check if the role already exists for the user and root
-        $existingRole = DebateRole::where('user_id', $userId)
-            ->where('root_id', $rootId)
-            ->first();
-
-        // If the role exists, update it; otherwise, create a new one
-        if ($existingRole) {
-            if ($isOwner) {
-                // If the action is performed by the owner, update the role without hierarchy check
-                $existingRole->update(['role' => $role]);
-            } else {
-                // If the action is part of an activity, update the role if the new role is superior or equal
-                if ($roleHierarchy[$role] >= $roleHierarchy[$existingRole->role]) {
-                    $existingRole->update(['role' => $role]);
-                }
-            }
-        } else {
-            // If the role does not exist, create a new one
-            DebateRole::create([
-                'user_id' => $userId,
-                'root_id' => $rootId,
-                'role' => $role,
-            ]);
-        }
-    }
-
-    
-    /*** CLASS TO CHANGE USER ROLE IN DEBATE HIERRARCHY BY OWNER ONLY ***/
-
-    public function changeUserRole(Request $request, $debateId, $userId)
-    {
-        // Validate the request
-        $request->validate([
-            'role' => 'required|in:owner,editor,writer,suggester,viewer',
+        // validate user input
+        $validator = Validator::make($request->all(), [
+            'search_query' => 'required|string|max:191',
         ]);
     
-        // Check if the authenticated user is the owner of the debate hierarchy
-        $user = $request->user();
-
-        $isDebateOwner = DebateRole::where('user_id', $user->id)
-            ->where('root_id', $debateId) // Use root_id instead of debate_id
-            ->where('role', 'owner')
-            ->exists();
-    
-        if (!$isDebateOwner) {
-            return response()->json(['error' => 'You are not the owner of this debate hierarchy.'], 403);
+        // return if validation fails
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 422,
+                'errors' => $validator->messages(),
+            ], 422);
         }
     
-        // Determine the root_id for the child debate
-        $debate = Debate::find($debateId);
-        $rootId = $debate->root_id ?? $debateId;
+        // search words by user input
+        $searchQuery = $request->search_query;
     
-        // Update the user's role
-        $this->assignRole($userId, $rootId, $request->query('role'), true);
+        $mainDebates = Debate::whereNull('parent_id') // Only select main debates
+            ->where(function ($query) use ($searchQuery) {
+                $query->where('title', 'LIKE', '%' . $searchQuery . '%') // Use LIKE for case-insensitive search
+                    ->orWhere('thesis', 'LIKE', '%' . $searchQuery . '%')
+                    ->orWhere(function ($query) use ($searchQuery) {
+                        // Case-insensitive search within JSON array
+                        $query->where(DB::raw('JSON_UNQUOTE(tags)'), 'LIKE', '%' . $searchQuery . '%');
+                    });
+            })
+            ->get();
     
-        return response()->json(['message' => 'User role updated successfully.']);
+        if ($mainDebates->count() > 0) {
+            // Transform the main debates into a simplified structure
+            $transformedMainDebates = $mainDebates->map(function ($mainDebate) {
+                return $this->transformMainDebate($mainDebate);
+            });
+    
+        // return response after search query excecution
+        return response()->json([
+                'status' => 200,
+                'debates' => $transformedMainDebates,
+            ], 200);
+        } else {
+            return response()->json([
+                'status' => 404,
+                'message' => 'No Debates found for the specified search query',
+            ], 404);
+        }
     }
+
+    
+    /*** CLASS TO GET LIST OF TOP CONTRIBUTORS IN FEATURED PAGE ***/
+
+    public function topContributors()
+    {
+        // Fetch top contributors in descending order based on total contributions
+        $topContributors = User::orderByDesc('total_contributions')
+            ->select('id', 'username', 'total_contributions')
+            ->get();
+
+        // return list of contributors
+        return response()->json([
+            'status' => 200,
+            'topContributors' => $topContributors,
+        ], 200);
+    }
+
+
+    /*** CLASS TO GET OVERALL STATS FOR HOME PAGE ***/
+
+    public function overallStats()
+    {
+        // Fetch overall contributions (sum of total contributions of all users)
+        $overallContributions = (int) User::sum('total_contributions');
+    
+        // Fetch overall votes (sum of total votes of all users)
+        $overallVotes = (int) Vote::count();
+    
+        // Fetch overall parent debates (total parent debates only excluding child debates)
+        $overallParentDebates = (int) Debate::whereNull('parent_id')->count();
+    
+        // Fetch overall claims (sum of total claims from all users)
+        $overallClaims = (int) User::sum('total_claims');
+    
+        // return all stats
+        return response()->json([
+            'status' => 200,
+            'overallContributions' => $overallContributions,
+            'overallVotes' => $overallVotes,
+            'overallParentDebates' => $overallParentDebates,
+            'overallClaims' => $overallClaims,
+        ], 200);
+    }
+    
    
 }

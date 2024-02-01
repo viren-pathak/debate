@@ -18,6 +18,13 @@ use Illuminate\Support\Facades\Storage;
 
 class UserController extends Controller
 {
+
+/********************************************************************* 
+* 
+*  USER AUTHNETICATION RELATED METHODS
+* 
+*********************************************************************/
+
     /***  Function for USER registeration ***/
 
     public function register(Request $request){
@@ -68,7 +75,6 @@ class UserController extends Controller
     }
 
 
-
     /*** Function For USER Login ***/
     
     public function login(Request $request){
@@ -107,6 +113,28 @@ class UserController extends Controller
             'status' => 'failed'
         ], 401);
     }
+
+
+    /*** Function For USER Logout ***/
+    
+    public function logout(Request $request){
+        auth()->user()->tokens()->delete(); // delete temp login token after logout
+
+        // Response after successful logout
+        return response([
+            'message' => 'Logout Successful',
+            'status'=>'success'
+        ], 200);
+    }
+
+    
+
+    
+/********************************************************************* 
+* 
+*  USER DASHBOARD RELATED METHODS
+* 
+*********************************************************************/
 
 
     /*** Function to fetch user profile details for editing. ***/
@@ -160,19 +188,6 @@ class UserController extends Controller
             'message' => 'Profile updated successfully',
             'user' => $user,
         ]);
-    }
-
-
-    /*** Function For USER Logout ***/
-    
-    public function logout(Request $request){
-        auth()->user()->tokens()->delete(); // delete temp login token after logout
-
-        // Response after successful logout
-        return response([
-            'message' => 'Logout Successful',
-            'status'=>'success'
-        ], 200);
     }
 
 
