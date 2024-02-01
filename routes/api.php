@@ -108,6 +108,8 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function(){
     Route::post('/debates/{debateId}/add-bookmark', [DebateController::class, 'toggleBookmark']); // Add debate to bookmark
     Route::get('/debates/{debateId}/my-bookmarks', [DebateController::class, 'getBookmarkedDebates']); // Get list of bookmarks by debate ID
     Route::put('/debates/{debateId}/users/{userId}/change-role', [DebateController::class, 'changeUserRole']); // Change user role in debate by owner
+    Route::post('/debates/{debateId}/mark-for-review', [DebateController::class, 'markForReview']);
+    Route::delete('/debates/{debateId}/unmark-debate-from-review', [DebateController::class, 'unmarkFromReview']);
 
     // CONTRIBUTIONS RELATED APIs
     Route::get('/debates/{debateId}/my-claims', [DebateController::class, 'getClaimsByDebate']); // Get list of claims by Debate ID

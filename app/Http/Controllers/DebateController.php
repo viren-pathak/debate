@@ -9,6 +9,7 @@ use App\Models\Thanks;
 use App\Models\Tag;
 use App\Models\Bookmark;
 use App\Models\DebateRole;
+use App\Models\Review;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
@@ -361,6 +362,152 @@ class DebateController extends Controller
             $this->archiveDebateRecursive($childDebate);
         }
     }
+
+
+   /*** CLASS TO MARK DEBATE FOR REVIEW ***/
+
+    public function markForReview(Request $request, int $debateId)
+    {
+        $user = auth('sanctum')->user(); // Retrieve the authenticated user
+
+        // Return if user not registered
+        if (!$user) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'You are not authorized'
+            ], 401);
+        }
+
+        // Find the debate
+        $debate = Debate::find($debateId);
+
+        // Return 404 if debate not found
+        if (!$debate) {
+            return response()->json([
+                'status' => 404,
+                'message' => 'Debate not found!',
+            ], 404);
+        }
+
+        // Check if the authenticated user is the owner or an editor
+        if ($user->id !== $debate->user_id && !$this->isEditorOrCreator($user->id, $debateId)) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'You need editor access to mark this debate for review!',
+            ], 403);
+        }
+
+        // Check if the debate is already marked for review
+        $existingReview = Review::where('debate_id', $debateId)->first();
+
+        // Validate the request
+        $validator = Validator::make($request->all(), [
+            'review' => 'required|in:Unsupported,Not a Claim,Unclear,Vulgar/Abusive,Duplicate,Unrelated,Move Elsewhere,More than one claim',
+            'reason' => 'string|nullable',
+        ]);
+
+        // Return if validation fails
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 422,
+                'errors' => $validator->messages()
+            ], 422);
+        }
+
+        if ($existingReview) {
+            // If the debate is already marked for review, update the existing review
+            $existingReview->update([
+                'review' => $request->review,
+                'reason' => $request->reason,
+            ]);
+
+            return response()->json([
+                'status' => 200,
+                'message' => 'Debate review updated successfully!',
+            ], 200);
+        }
+
+        // If no existing review, create a new one
+        Review::create([
+            'mark_user_id' => $user->id,
+            'debate_id' => $debateId,
+            'review' => $request->review,
+            'reason' => $request->reason,
+        ]);
+
+        return response()->json([
+            'status' => 200,
+            'message' => 'Debate marked for review successfully!',
+        ], 200);
+    }
+
+
+    /*** CLASS TO UNMARK DEBATE FROM REVIEW ***/
+
+    public function unmarkFromReview(Request $request, int $debateId)
+    {
+        $user = auth('sanctum')->user(); // Retrieve the authenticated user
+
+        // Return if user not registered
+        if (!$user) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'You are not authorized'
+            ], 401);
+        }
+
+        // Find the debate
+        $debate = Debate::find($debateId);
+
+        // Return 404 if debate not found
+        if (!$debate) {
+            return response()->json([
+                'status' => 404,
+                'message' => 'Debate not found!',
+            ], 404);
+        }
+
+        // Check if the authenticated user is the owner or editor
+        if ($user->id !== $debate->user_id && !$this->isEditorOrCreator($user->id, $debateId)) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'You need editor access to unmark this debate from review!',
+            ], 403);
+        }
+
+        // Check if the debate is marked for review
+        $existingReview = Review::where('debate_id', $debateId)->first();
+
+        // If no existing review, return an error
+        if (!$existingReview) {
+            return response()->json([
+                'status' => 400,
+                'message' => 'This debate is not marked for review.',
+            ], 400);
+        }
+
+        // Validate the request
+        $validator = Validator::make($request->all(), [
+            'reason' => 'string|nullable',
+        ]);
+
+        // Return if validation fails
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 422,
+                'errors' => $validator->messages()
+            ], 422);
+        }
+
+        // Delete the review from the database if everything's right
+        $existingReview->delete();
+
+        return response()->json([
+            'status' => 200,
+            'message' => 'Debate unmarked from review successfully!',
+        ], 200);
+    }
+
 
 
     /** CLASS TO DISPLAY ALL DEBATES ***/
