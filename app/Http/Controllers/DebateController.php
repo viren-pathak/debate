@@ -849,6 +849,18 @@ class DebateController extends Controller
 
     public function addComment(Request $request, int $debateId)
     {
+
+        // find debate by requested ID
+        $debate = Debate::find($debateId);
+
+        // Response if debate not found with requested ID
+        if (!$debate) {
+            return response()->json([
+                'status' => 404,
+                'message' => "Debate not found!"
+            ], 404);
+        }
+        
         // Validate user input
         $validator = Validator::make($request->all(), [
             'comment' => 'required|string',
@@ -959,8 +971,16 @@ class DebateController extends Controller
             ], 404);
         }
 
+        $rootIdToCheck = $comment->debate->root_id ?? $comment->debate_id; // Use root_id if available, otherwise use debate_id
+
         // Check if the user is the owner of the comment
-        if ($comment->user_id !== $user->id) {
+        if (
+            !$user ||
+            (
+                $user->id !== $comment->user_id &&
+                !$this->isEditorOrCreator($user->id, $rootIdToCheck)
+            )
+        ) {
             return response()->json([
                 'status' => 403,
                 'message' => "You do not have permission to hide this comment."
