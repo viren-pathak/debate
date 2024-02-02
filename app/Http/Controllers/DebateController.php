@@ -10,6 +10,7 @@ use App\Models\Tag;
 use App\Models\Bookmark;
 use App\Models\DebateRole;
 use App\Models\Review;
+use App\Models\ReviewHistory;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
@@ -420,13 +421,22 @@ class DebateController extends Controller
                 'review' => $request->review,
                 'reason' => $request->reason,
             ]);
-
+    
+            // Log the review history
+            ReviewHistory::create([
+                'status' => 'mark',
+                'debate_id' => $debateId,
+                'mark_user_id' => $user->id,
+                'review' => $request->review,
+                'reason' => $request->reason,
+            ]);
+    
             return response()->json([
                 'status' => 200,
                 'message' => 'Debate review updated successfully!',
             ], 200);
         }
-
+    
         // If no existing review, create a new one
         Review::create([
             'mark_user_id' => $user->id,
@@ -434,7 +444,16 @@ class DebateController extends Controller
             'review' => $request->review,
             'reason' => $request->reason,
         ]);
-
+    
+        // Log the review history
+        ReviewHistory::create([
+            'status' => 'mark',
+            'debate_id' => $debateId,
+            'mark_user_id' => $user->id,
+            'review' => $request->review,
+            'reason' => $request->reason,
+        ]);
+    
         return response()->json([
             'status' => 200,
             'message' => 'Debate marked for review successfully!',
@@ -486,6 +505,9 @@ class DebateController extends Controller
             ], 400);
         }
 
+        // Retrieve the last mark_user_id before deleting the review
+        $lastMarkUserId = $existingReview->mark_user_id;
+
         // Validate the request
         $validator = Validator::make($request->all(), [
             'reason' => 'string|nullable',
@@ -501,6 +523,16 @@ class DebateController extends Controller
 
         // Delete the review from the database if everything's right
         $existingReview->delete();
+
+        // Log the review history
+        ReviewHistory::create([
+            'status' => 'unmark',
+            'debate_id' => $debateId,
+            'mark_user_id' => $lastMarkUserId,
+            'unmark_user_id' => $user->id,
+            'review' => $existingReview->review,
+            'reason' => $request->reason,
+        ]);
 
         return response()->json([
             'status' => 200,
@@ -930,7 +962,7 @@ class DebateController extends Controller
         $transformedTags = $tags->map(function ($tag) {
             return [
                 'name' => $tag->tag,
-                'image' => $tag->image ? asset('storage/' . $tag->image) : null,
+                'image' => $tag->image,
             ];
         });
     
@@ -1412,8 +1444,11 @@ class DebateController extends Controller
     // Helper function to check if the user is an owner/ editor or creator of the debate
     private function isEditorOrCreator($userId, $debateId)
     {
+        // Retrieve the root_id of the requested debateId
+        $rootId = Debate::find($debateId)->root_id ?? $debateId;
+
         return DebateRole::where('user_id', $userId)
-            ->where('root_id', $debateId)
+            ->where('root_id', $rootId)
             ->whereIn('role', ['owner', 'editor']) 
             ->exists();
     }
@@ -1851,7 +1886,7 @@ class DebateController extends Controller
     {
         // Fetch top contributors in descending order based on total contributions
         $topContributors = User::orderByDesc('total_contributions')
-            ->select('id', 'username', 'total_contributions')
+            ->select('id', 'profile_picture', 'username', 'total_contributions')
             ->get();
 
         // return list of contributors
