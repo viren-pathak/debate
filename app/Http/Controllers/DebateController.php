@@ -80,6 +80,14 @@ class DebateController extends Controller
             }
         }
 
+        // Log the edit history
+        DebateEditHistory::create([
+            'root_id' => $storevar->id,
+            'debate_id' => $storevar->id,
+            'create_user_id' => $user->id,
+            'last_title' => $request->title,
+        ]);  
+
         // create debate and store data in database
         $storevar = debate::create([
             'user_id' => $user->id,
@@ -100,15 +108,7 @@ class DebateController extends Controller
         // Update user comments & contributions in users table
         $user->total_claims += 1; // Increment total claims
         $user->total_contributions += 1; // Increment total contributions
-        $user->save();
-
-        // Log the edit history
-        DebateEditHistory::create([
-            'root_id' => $storevar->root_id ?? $storevar->id,
-            'debate_id' => $storevar->id,
-            'create_user_id' => $storevar->user_id,
-            'last_title' => $request->title,
-        ]);       
+        $user->save();     
 
         // response after successfull debate creation and if ay error found
         if ($storevar) {
@@ -250,6 +250,16 @@ class DebateController extends Controller
                         $this->addTagIfNotExists($tag);
                     }
                 }
+
+                // Log the edit history
+                DebateEditHistory::create([
+                    'root_id' => $storevar->root_id ?? $storevar->id,
+                    'debate_id' => $storevar->id,
+                    'create_user_id' => $storevar->user_id,
+                    'edit_user_id' => $user->id,
+                    'last_title' => $storevar->getOriginal('title'),
+                    'edited_title' => $request->title,
+                ]);
                 
                 // update debate in DB if everything fine
                 $storevar->update([
@@ -262,16 +272,6 @@ class DebateController extends Controller
                     'isDebatePublic' => $request->isDebatePublic,
                     'isType' => $request->isType,
                     'voting_allowed' => $request->voting_allowed ?? false,
-                ]);
-
-                // Log the edit history
-                DebateEditHistory::create([
-                    'root_id' => $storevar->root_id ?? $storevar->id,
-                    'debate_id' => $storevar->id,
-                    'create_user_id' => $storevar->user_id,
-                    'edit_user_id' => $user->id,
-                    'last_title' => $storevar->getOriginal('title'),
-                    'edited_title' => $request->title,
                 ]);
 
         
