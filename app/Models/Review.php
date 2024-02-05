@@ -11,6 +11,7 @@ class Review extends Model
 
     protected $fillable = [
         'mark_user_id', 
+        'root_id',
         'debate_id', 
         'review', 
         'reason'

@@ -412,6 +412,8 @@ class DebateController extends Controller
             ], 404);
         }
 
+        $rootId = $debate->root_id ?? $debateId; // get root_id of requested debateId
+
         // Check if the authenticated user is the owner or an editor
         if ($user->id !== $debate->user_id && !$this->isEditorOrCreator($user->id, $debateId)) {
             return response()->json([
@@ -440,6 +442,8 @@ class DebateController extends Controller
         if ($existingReview) {
             // If the debate is already marked for review, update the existing review
             $existingReview->update([
+                'root_id' => $rootId,
+                'mark_user_id' => $user->id,
                 'review' => $request->review,
                 'reason' => $request->reason,
             ]);
@@ -447,6 +451,7 @@ class DebateController extends Controller
             // Log the review history
             ReviewHistory::create([
                 'status' => 'mark',
+                'root_id' => $rootId,
                 'debate_id' => $debateId,
                 'mark_user_id' => $user->id,
                 'review' => $request->review,
@@ -462,6 +467,7 @@ class DebateController extends Controller
         // If no existing review, create a new one
         Review::create([
             'mark_user_id' => $user->id,
+            'root_id' => $rootId,
             'debate_id' => $debateId,
             'review' => $request->review,
             'reason' => $request->reason,
@@ -470,6 +476,7 @@ class DebateController extends Controller
         // Log the review history
         ReviewHistory::create([
             'status' => 'mark',
+            'root_id' => $rootId,
             'debate_id' => $debateId,
             'mark_user_id' => $user->id,
             'review' => $request->review,
@@ -507,6 +514,8 @@ class DebateController extends Controller
                 'message' => 'Debate not found!',
             ], 404);
         }
+
+        $rootId = $debate->root_id ?? $debateId; // get root_id of requested debateId
 
         // Check if the authenticated user is the owner or editor
         if ($user->id !== $debate->user_id && !$this->isEditorOrCreator($user->id, $debateId)) {
@@ -549,6 +558,7 @@ class DebateController extends Controller
         // Log the review history
         ReviewHistory::create([
             'status' => 'unmark',
+            'root_id' => $rootId,
             'debate_id' => $debateId,
             'mark_user_id' => $lastMarkUserId,
             'unmark_user_id' => $user->id,

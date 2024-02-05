@@ -11,6 +11,7 @@ class CreateReviewHistoryTable extends Migration
         Schema::create('review_history', function (Blueprint $table) {
             $table->id();
             $table->enum('status', ['mark', 'unmark']);
+            $table->foreignId('root_id')->constrained('debate')->onDelete('cascade');
             $table->foreignId('debate_id')->constrained('debate', 'id')->onDelete('cascade');
             $table->foreignId('mark_user_id')->constrained('users', 'id')->onDelete('cascade');
             $table->foreignId('unmark_user_id')->nullable()->constrained('users', 'id')->onDelete('cascade');

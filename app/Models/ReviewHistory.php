@@ -13,6 +13,7 @@ class ReviewHistory extends Model
 
     protected $fillable = [
         'status',
+        'root_id',
         'debate_id',
         'mark_user_id',
         'unmark_user_id',
