@@ -737,6 +737,7 @@ class DebateController extends Controller
 
     public function getActivitiesRecursive($debateId, $userId, $activityType)
     {
+        // find debate by requested debateId
         $debate = Debate::find($debateId);
 
         if (!$debate) {
@@ -1459,6 +1460,7 @@ class DebateController extends Controller
         // Check if the authenticated user is the owner of the debate hierarchy
         $user = $request->user();
 
+        // find is auth user is owner of hierarchy
         $isDebateOwner = DebateRole::where('user_id', $user->id)
             ->where('root_id', $debateId) // Use root_id instead of debate_id
             ->where('role', 'owner')
@@ -1471,7 +1473,7 @@ class DebateController extends Controller
     
         // Determine the root_id for the child debate
         $debate = Debate::find($debateId);
-        $rootId = $debate->root_id ?? $debateId;
+        $rootId = $debate->root_id ?? $debateId; // find root_id of requested debateId
     
         // Update the user's role
         $this->assignRole($userId, $rootId, $request->query('role'), true);
@@ -1487,6 +1489,7 @@ class DebateController extends Controller
         // Retrieve the root_id of the requested debateId
         $rootId = Debate::find($debateId)->root_id ?? $debateId;
 
+        // check role is owner, editor or not
         return DebateRole::where('user_id', $userId)
             ->where('root_id', $rootId)
             ->whereIn('role', ['owner', 'editor']) 

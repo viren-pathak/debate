@@ -22,6 +22,7 @@ class PasswordResetController extends Controller
             'email' => 'required|email',
         ]);
 
+        // get email id from request
         $email = $request->email;
 
         // check Provided Email ID exis or not in db
