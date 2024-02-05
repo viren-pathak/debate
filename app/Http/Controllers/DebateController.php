@@ -11,6 +11,7 @@ use App\Models\Bookmark;
 use App\Models\DebateRole;
 use App\Models\Review;
 use App\Models\ReviewHistory;
+use App\Models\DebateEditHistory;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
@@ -101,6 +102,14 @@ class DebateController extends Controller
         $user->total_contributions += 1; // Increment total contributions
         $user->save();
 
+        // Log the edit history
+        DebateEditHistory::create([
+            'root_id' => $storevar->root_id ?? $storevar->id,
+            'debate_id' => $storevar->id,
+            'create_user_id' => $storevar->user_id,
+            'last_title' => $request->title,
+        ]);       
+
         // response after successfull debate creation and if ay error found
         if ($storevar) {
             return response()->json([
@@ -162,10 +171,11 @@ class DebateController extends Controller
             ], 403);
         }
     
-        // return debate details if everythin is fine
+        // return debate details if everything is fine
         return response()->json([
             'status' => 200,
-            'Debate' => $findbyidvar
+            'Debate' => $findbyidvar,
+            'EditHistory' => $findbyidvar->editHistory,
         ], 200);
     }
     
@@ -253,11 +263,23 @@ class DebateController extends Controller
                     'isType' => $request->isType,
                     'voting_allowed' => $request->voting_allowed ?? false,
                 ]);
+
+                // Log the edit history
+                DebateEditHistory::create([
+                    'root_id' => $storevar->root_id ?? $storevar->id,
+                    'debate_id' => $storevar->id,
+                    'create_user_id' => $storevar->user_id,
+                    'edit_user_id' => $user->id,
+                    'last_title' => $storevar->getOriginal('title'),
+                    'edited_title' => $request->title,
+                ]);
+
         
                 // return successful response after successful updates
                 return response()->json([
                     'status' => 200,
-                    'message' => 'Debate topic Updated Successfully'
+                    'message' => 'Debate topic Updated Successfully',
+                    'EditHistory' => $storevar->editHistory,
                 ], 200);
             } 
     }
@@ -842,6 +864,14 @@ class DebateController extends Controller
         $user->total_claims += 1; // Increment total claims
         $user->total_contributions += 1; // Increment total contributions
         $user->save();
+
+        // Log the edit history
+        DebateEditHistory::create([
+            'root_id' => $rootId,
+            'debate_id' => $childDebate->id,
+            'create_user_id' => $user->id,
+            'last_title' => $request->title,
+        ]);  
 
         // response after successfully creating child debate
         return response()->json([

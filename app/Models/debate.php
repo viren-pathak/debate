@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Model;
 
 class debate extends Model
@@ -73,5 +74,10 @@ class debate extends Model
     public function roles()
     {
         return $this->hasMany(DebateRole::class);
+    }
+
+    public function editHistory(): HasMany
+    {
+        return $this->hasMany(DebateEditHistory::class, 'debate_id');
     }
 }
