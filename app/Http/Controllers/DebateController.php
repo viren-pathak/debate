@@ -12,6 +12,7 @@ use App\Models\DebateRole;
 use App\Models\Review;
 use App\Models\ReviewHistory;
 use App\Models\DebateEditHistory;
+use App\Models\SourceinDebate;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
@@ -80,13 +81,6 @@ class DebateController extends Controller
             }
         }
 
-        // Log the edit history
-        DebateEditHistory::create([
-            'root_id' => $storevar->id,
-            'debate_id' => $storevar->id,
-            'create_user_id' => $user->id,
-            'last_title' => $request->title,
-        ]);  
 
         // create debate and store data in database
         $storevar = debate::create([
@@ -101,6 +95,17 @@ class DebateController extends Controller
             'isType' => $request->isType,
             'voting_allowed' => $request->voting_allowed ?? false,
         ]);
+
+        // Store embedded links if found in the title
+        $this->storeEmbeddedLinksForRoot($storevar->id, $request->title);
+
+            // Log the edit history
+        DebateEditHistory::create([
+            'root_id' => $storevar->id,
+            'debate_id' => $storevar->id,
+            'create_user_id' => $user->id,
+            'last_title' => $request->title,
+        ]);  
 
         // Assign the role to the user
         $this->assignRole($user->id, $storevar->id, 'owner');
@@ -132,6 +137,29 @@ class DebateController extends Controller
 
         if (!$existingTag) {
             Tag::create(['tag' => $tag]);
+        }
+    }
+
+    // Helper function to embed links within title
+    private function storeEmbeddedLinksForRoot($debateId, $title)
+    {
+        // Regular expression to find links in the title
+        $pattern = '/\[([^\]]+)\]\(([^)]+)\)/';
+
+        preg_match_all($pattern, $title, $matches, PREG_SET_ORDER);
+
+        foreach ($matches as $match) {
+            $displayText = $match[1]; // Extract the display text
+            $link = $match[2]; // Extract the link
+
+            // Store the embedded link in the sources_in_debate table
+            SourceInDebate::create([
+                'root_id' => $debateId,
+                'debate_id' => $debateId,
+                'debate_title' => $title,
+                'display_text' => $displayText,
+                'link' => $link,
+            ]);
         }
     }
 
@@ -622,6 +650,12 @@ class DebateController extends Controller
             ], 404);
         }
 
+        // Find embedded links associated with this debate
+        $embeddedLinks = SourceInDebate::where('root_id', $id)->get();
+
+        // Append embedded links to the debate object
+        $debate->embedded_links = $embeddedLinks;
+
         // Transform the debate into a nested structure
         $transformedDebate = $this->transformDebate($debate);
 
@@ -884,12 +918,38 @@ class DebateController extends Controller
             'last_title' => $request->title,
         ]);  
 
+        // Store embedded links if found in the title
+        $this->storeEmbeddedLinksForChild($rootId, $childDebate->id, $request->title);
+
         // response after successfully creating child debate
         return response()->json([
             'status' => 200,
             'message' => 'Child Debate created Successfully',
             'childDebate' => $childDebate,
         ], 200);
+    }
+
+    // Helper function to embed links within title
+    private function storeEmbeddedLinksForChild($rootId, $debateId, $title)
+    {
+        // Regular expression to find links in the title
+        $pattern = '/\[([^\]]+)\]\(([^)]+)\)/';
+
+        preg_match_all($pattern, $title, $matches, PREG_SET_ORDER);
+
+        foreach ($matches as $match) {
+            $displayText = $match[1]; // Extract the display text
+            $link = $match[2]; // Extract the link
+
+            // Store the embedded link in the sources_in_debate table
+            SourceInDebate::create([
+                'root_id' => $rootId,
+                'debate_id' => $debateId,
+                'debate_title' => $title,
+                'display_text' => $displayText,
+                'link' => $link,
+            ]);
+        }
     }
 
     
