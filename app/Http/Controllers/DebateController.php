@@ -742,6 +742,60 @@ class DebateController extends Controller
         return $debate;
     }
 
+    /** CLASS TO GET ALL SOURCE LINK WITHING DEBATE HIERARCHY **/
+
+    public function getSources($rootId)
+    {
+        // Fetch sources based on the root_id
+        $sources = SourceInDebate::where('root_id', $rootId)->select('link', 'debate_id', 'debate_title')->get();
+
+        // Return the sources
+        return response()->json([
+            'status' => 200,
+            'sources' => $sources,
+        ], 200);
+    }
+
+
+    /** CLASS DOWNLOAD FILE CONTAINING ALL SOURCES LINKS WITHIN DEBATE HIERARCHY **/
+
+    public function downloadSourcesLinksFile($rootId)
+    {
+
+        $user = auth('sanctum')->user(); // Retrieve the authenticated user
+
+        // return if user not registered in site
+        if (!$user) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'Unauthorized Access'
+            ], 401);
+        }
+        
+        // Find the root debate
+        $rootDebate = Debate::whereNull('root_id')->findOrFail($rootId);
+
+        // Fetch all sources within the hierarchy based on the root_id
+        $sources = SourceInDebate::where('root_id', $rootId)->get();
+
+        // Initialize content with the root debate title
+        $content = "Root Debate Title: {$rootDebate->title}\n\n";
+
+        // Add numbered links within the hierarchy
+        foreach ($sources as $index => $source) {
+            $content .= ($index + 1) . ". {$source->link}\n";
+        }
+
+        // Generate the file name
+        $fileName = "{$rootDebate->title}_{$rootDebate->id}_sources.txt";
+
+        // Store the content in a .txt file
+        Storage::put($fileName, $content);
+
+        // Download the file
+        return Storage::download($fileName);
+    }
+
 
     /*** CLASS TO CREATE FILTER ON THE BASIS OF USER AND ACTIVITY ***/
 

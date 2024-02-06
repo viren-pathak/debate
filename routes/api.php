@@ -57,6 +57,9 @@ Route::get('/debates/{debateId}/vote-counts', [DebateController::class, 'getVote
 
 Route::get('/debates/{debateId}/commentsList', [DebateController::class, 'getComments']); // Get Comments List
 
+Route::get('debates/{rootId}/get-sources', [DebateController::class, 'getSources']); // Get sources withing debate hierarchy
+Route::get('debates/download-source-links-text-file/{rootId}', [DebateController::class, 'downloadSourcesLinksFile']); // Download sources file
+
 Route::post('/debates/{parentId}/addProsChildDebate', [DebateController::class, 'addProsChildDebate']); // Add pros to debate
 Route::post('/debates/{parentId}/addConsChildDebate', [DebateController::class, 'addConsChildDebate']); // Add Cons to debate
 
