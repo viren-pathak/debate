@@ -13,6 +13,7 @@ use App\Models\Review;
 use App\Models\ReviewHistory;
 use App\Models\DebateEditHistory;
 use App\Models\SourceinDebate;
+use App\Models\SharedLink;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
@@ -22,6 +23,7 @@ use App\FileUploadService;
 use App\Models\DebateComment;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 
 class DebateController extends Controller
@@ -881,6 +883,114 @@ class DebateController extends Controller
     }
 
 
+    /*** CLASS TO GENERATE SHARABLE LINKS FOR DEBATE ***/
+
+    public function shareDebateLink(Request $request, int $debateId)
+    {
+        $user = auth('sanctum')->user(); // Retrieve the authenticated user
+
+        // Return if user not registered
+        if (!$user) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'You are not authorized'
+            ], 401);
+        }
+
+        // Find the debate
+        $debate = Debate::find($debateId);
+
+        // Return 404 if debate not found
+        if (!$debate) {
+            return response()->json([
+                'status' => 404,
+                'message' => 'Debate not found!',
+            ], 404);
+        }
+
+        // Check if the authenticated user is the owner or an editor
+        if ($user->id !== $debate->user_id && !$this->isEditorOrCreator($user->id, $debateId)) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'You need editor access to share the debate link!',
+            ], 403);
+        }
+
+        // Validate the request
+        $validator = Validator::make($request->all(), [
+            'enable_sharing' => 'required|boolean',
+            'role' => 'required|string|in:viewer,suggestor,editor',
+        ]);
+
+        // Return if validation fails
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 422,
+                'errors' => $validator->messages()
+            ], 422);
+        }
+
+        // Generate a unique link
+        $link = Str::random(32);
+
+        // Store the shared link in the database
+        SharedLink::create([
+            'debate_id' => $debateId,
+            'link' => $link,
+            'invited_by' => $user->id,
+            'role' => $request->role,
+        ]);
+
+        return response()->json([
+            'status' => 200,
+            'message' => 'Debate link shared successfully!',
+            'shared_link' => url("/debates/$debateId/join?link=$link"), // Provide the link to the user
+        ], 200);
+    }
+
+
+    /*** CLASS TO JOIN DEBATES BY SHARED LINKS ***/
+
+    public function joinDebateViaLink(Request $request, string $link)
+    {
+        $user = auth('sanctum')->user(); 
+    
+        // Check if the link exists
+        $sharedLink = SharedLink::where('link', $link)->first();
+        if (!$sharedLink) {
+            return response()->json([
+                'status' => 404,
+                'message' => 'Invalid or expired debate link.',
+            ], 404);
+        }
+    
+        $role = $sharedLink->role;
+    
+        // Check if the user is authorized
+        if (!$user) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'You are not authorized to join the debate.',
+            ], 401);
+        }
+    
+        // Add the user to the debate roles table
+        DebateRole::create([
+            'user_id' => $user->id,
+            'role' => $role,
+            'root_id' => $sharedLink->debate_id,
+        ]);
+
+        // Delete the shared link from the database
+        $sharedLink->delete();
+
+        return response()->json([
+            'status' => 200,
+            'message' => 'You have successfully joined the debate!',
+        ], 200);
+    }
+    
+    
 
 /********************************************************************* 
 * 

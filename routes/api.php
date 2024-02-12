@@ -63,6 +63,8 @@ Route::get('debates/download-source-links-text-file/{rootId}', [DebateController
 Route::post('/debates/{parentId}/addProsChildDebate', [DebateController::class, 'addProsChildDebate']); // Add pros to debate
 Route::post('/debates/{parentId}/addConsChildDebate', [DebateController::class, 'addConsChildDebate']); // Add Cons to debate
 
+Route::post('/debates/{debateId}/share-link', [DebateController::class, 'shareDebateLink']); // share debate Link
+Route::get('/debates/join/{link}', [DebateController::class, 'joinDebateViaLink']); // Join debate link
 
 // Admin APIs
 Route::get('/admin/all-users', [AdminController::class, 'getAllUsers']); // get list of all users
