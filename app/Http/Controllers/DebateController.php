@@ -968,7 +968,20 @@ class DebateController extends Controller
             ], 404);
         }
     
-        $role = $sharedLink->role;
+        // Check if the user has already joined this debate
+        $existingRole = DebateRole::where('user_id', $user->id)
+        ->where('root_id', $sharedLink->debate_id)
+        ->exists();
+
+        if ($existingRole) {
+            // Delete the shared link from the database
+            $sharedLink->delete();
+            
+            return response()->json([
+                'status' => 400,
+                'message' => 'You are already part of this debate.',
+            ], 400);
+        }
     
         // Check if the user is authorized
         if (!$user) {
@@ -978,6 +991,8 @@ class DebateController extends Controller
             ], 401);
         }
     
+        $role = $sharedLink->role; // get role from shared link
+
         // Add the user to the debate roles table
         DebateRole::create([
             'user_id' => $user->id,
@@ -1030,6 +1045,18 @@ class DebateController extends Controller
             // Find user by email
             $invitedUser = User::where('email', $data['email'])->first();
             if ($invitedUser) {
+                // Check if the user is already part of the debate
+                $existingRole = DebateRole::where('user_id', $invitedUser->id)
+                                            ->where('root_id', $debateId)
+                                            ->exists();
+                if ($existingRole) {
+                    return response()->json([
+                        'status' => 400,
+                        'message' => 'The invited user is already part of this debate!',
+                    ], 400);
+                }
+
+                // If user is not register genaretae
                 $invitationToken = $this->generateInvitationToken($debateId, $user->id, $data['role']);
                 $invitationLink = url("/debates/$debateId/join?link=$invitationToken");
                 $invitedUser->notify(new DebateInvitationNotification($invitationLink, $data['role']));
@@ -1044,6 +1071,18 @@ class DebateController extends Controller
             // Find user by username
             $invitedUser = User::where('username', $data['username'])->first();
             if ($invitedUser) {
+                // Check if the user is already part of the debate
+                $existingRole = DebateRole::where('user_id', $invitedUser->id)
+                                            ->where('root_id', $debateId)
+                                            ->exists();
+                if ($existingRole) {
+                    return response()->json([
+                        'status' => 400,
+                        'message' => 'The invited user is already part of this debate!',
+                    ], 400);
+                }
+
+                // If user is not register genaretae
                 $invitationToken = $this->generateInvitationToken($debateId, $user->id, $data['role']);
                 $invitationLink = url("/debates/$debateId/join?link=$invitationToken");
                 $invitedUser->notify(new DebateInvitationNotification($invitationLink, $data['role']));
