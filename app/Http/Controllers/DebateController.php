@@ -24,6 +24,10 @@ use App\Models\DebateComment;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Mail\Message;
+use App\Notifications\DebateInvitationNotification;
+
 
 
 class DebateController extends Controller
@@ -989,6 +993,95 @@ class DebateController extends Controller
             'message' => 'You have successfully joined the debate!',
         ], 200);
     }
+    
+
+    /*** CLASS TO INVITE USER VIA USERNAME OR MAIL ***/
+    
+    public function inviteUser(Request $request, int $debateId)
+    {
+        $user = auth('sanctum')->user();
+    
+        // Retrieve the input data from the request
+        $data = $request->validate([
+            'username' => 'nullable|string|exists:users,username',
+            'email' => 'nullable|string|email',
+            'role' => 'required|string|in:viewer,suggestor,editor',
+        ]);
+    
+        // Find the debate
+        $debate = Debate::find($debateId);
+        if (!$debate) {
+            return response()->json([
+                'status' => 404,
+                'message' => 'Debate not found!',
+            ], 404);
+        }
+    
+        // Check if the authenticated user is the owner or an editor
+        if ($user->id !== $debate->user_id && !$this->isEditorOrCreator($user->id, $debateId)) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'You need editor access to invite users to the debate!',
+            ], 403);
+        }
+    
+        // Send an invitation notification if email is provided
+        if (isset($data['email']) && $data['email']) {
+            // Find user by email
+            $invitedUser = User::where('email', $data['email'])->first();
+            if ($invitedUser) {
+                $invitationToken = $this->generateInvitationToken($debateId, $user->id, $data['role']);
+                $invitationLink = url("/debates/$debateId/join?link=$invitationToken");
+                $invitedUser->notify(new DebateInvitationNotification($invitationLink, $data['role']));
+            } else {
+                // User with provided email does not exist
+                return response()->json([
+                    'status' => 404,
+                    'message' => 'User with provided email does not exist!',
+                ], 404);
+            }
+        } elseif (isset($data['username']) && $data['username']) {
+            // Find user by username
+            $invitedUser = User::where('username', $data['username'])->first();
+            if ($invitedUser) {
+                $invitationToken = $this->generateInvitationToken($debateId, $user->id, $data['role']);
+                $invitationLink = url("/debates/$debateId/join?link=$invitationToken");
+                $invitedUser->notify(new DebateInvitationNotification($invitationLink, $data['role']));
+            } else {
+                // User with provided username does not exist
+                return response()->json([
+                    'status' => 404,
+                    'message' => 'User with provided username does not exist!',
+                ], 404);
+            }
+        } else {
+            // Neither email nor username provided
+            return response()->json([
+                'status' => 422,
+                'message' => 'Please provide either email or username to invite a user!',
+            ], 422);
+        }
+
+    
+        return response()->json([
+            'status' => 200,
+            'message' => 'Invitation email sent successfully!',
+        ], 200);
+    }
+    
+    // Method to generate and store invitation token
+    private function generateInvitationToken(int $debateId, int $invitedById, string $role)
+    {
+        $invitationToken = Str::random(32);
+        SharedLink::create([
+            'debate_id' => $debateId,
+            'link' => $invitationToken,
+            'invited_by' => $invitedById,
+            'role' => $role,
+        ]);
+        return $invitationToken;
+    }
+    
     
     
 

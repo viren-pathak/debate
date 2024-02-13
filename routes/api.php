@@ -64,7 +64,9 @@ Route::post('/debates/{parentId}/addProsChildDebate', [DebateController::class, 
 Route::post('/debates/{parentId}/addConsChildDebate', [DebateController::class, 'addConsChildDebate']); // Add Cons to debate
 
 Route::post('/debates/{debateId}/share-link', [DebateController::class, 'shareDebateLink']); // share debate Link
-Route::get('/debates/join/{link}', [DebateController::class, 'joinDebateViaLink']); // Join debate link
+Route::get('/debates/join/{link}', [DebateController::class, 'joinDebateViaLink']); // Join debate via link
+Route::post('/debates/{debateId}/invite', 'DebateController@inviteUser')->middleware('auth:sanctum');
+
 
 // Admin APIs
 Route::get('/admin/all-users', [AdminController::class, 'getAllUsers']); // get list of all users
@@ -113,8 +115,9 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function(){
     Route::post('/debates/{debateId}/add-bookmark', [DebateController::class, 'toggleBookmark']); // Add debate to bookmark
     Route::get('/debates/{debateId}/my-bookmarks', [DebateController::class, 'getBookmarkedDebates']); // Get list of bookmarks by debate ID
     Route::put('/debates/{debateId}/users/{userId}/change-role', [DebateController::class, 'changeUserRole']); // Change user role in debate by owner
-    Route::post('/debates/{debateId}/mark-for-review', [DebateController::class, 'markForReview']);
-    Route::delete('/debates/{debateId}/unmark-debate-from-review', [DebateController::class, 'unmarkFromReview']);
+    Route::post('/debates/{debateId}/mark-for-review', [DebateController::class, 'markForReview']); // Mark debate for review
+    Route::delete('/debates/{debateId}/unmark-debate-from-review', [DebateController::class, 'unmarkFromReview']); // Unmark debate from review
+    Route::post('/debates/{debateId}/invite', [DebateController::class, 'inviteUser']); // Invite user via username or email
 
     // CONTRIBUTIONS RELATED APIs
     Route::get('/debates/{debateId}/my-claims', [DebateController::class, 'getClaimsByDebate']); // Get list of claims by Debate ID
