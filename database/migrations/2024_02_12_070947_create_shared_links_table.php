@@ -8,11 +8,13 @@ class CreateSharedLinksTable extends Migration
 {
     public function up()
     {
+        Schema::dropIfExists('shared_links');
+
         Schema::create('shared_links', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('debate_id')->constrained()->onDelete('cascade');
+            $table->foreignId('debate_id')->constrained('debate')->onDelete('cascade');
             $table->string('link')->unique();
-            $table->unsignedBigInteger('invited_by'); 
+            $table->foreignId('invited_by')->constrained('users')->onDelete('cascade');
             $table->string('role');
             $table->timestamps();
         });
