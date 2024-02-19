@@ -748,6 +748,72 @@ class DebateController extends Controller
         return $debate;
     }
 
+
+    /*** CLASS TO DISPLAY DEBATE INTO SUNBURST CHART AND TREE HIERARCHY ***/
+
+    public function getDebateForSunburstChart($id)
+    {
+        // Find the specified debate by ID with its pros and cons
+        $debate = Debate::with(['pros', 'cons'])->find($id);
+
+        // response if debate with requested ID did not found
+        if (!$debate) {
+            return response()->json([
+                'status' => 404,
+                'message' => 'Debate not found!'
+            ], 404);
+        }
+
+        // Find embedded links associated with this debate
+        $embeddedLinks = SourceInDebate::where('root_id', $id)->get();
+
+        // Append embedded links to the debate object
+        $debate->embedded_links = $embeddedLinks;
+
+        // Exclude archived debates
+        if ($debate->archived) {
+            return response()->json([
+                'status' => 200,
+                'debate' => new \stdClass, // Return an empty JSON object
+            ], 200);
+        }
+
+        // Transform the debate into a nested structure for sunburst chart
+        $transformedDebate = $this->transformDebateForSunburst($debate);
+
+        // response of successful
+        return response()->json([
+            'status' => 200,
+            'debate' => $transformedDebate,
+        ], 200);
+    }
+
+    private function transformDebateForSunburst($debate)
+    {
+        $transformedDebate = [
+            'id' => $debate->id,
+            'parent_id' => $debate->parent_id,
+            'side' => $debate->side,
+            'title' => $debate->title,
+            'created_at' => $debate->created_at,
+            'updated_at' => $debate->updated_at,
+            'children' => []
+        ];
+
+        // Recursively transform pros
+        foreach ($debate->pros as $pro) {
+            $transformedDebate['children'][] = $this->transformDebateForSunburst($pro);
+        }
+
+        // Recursively transform cons
+        foreach ($debate->cons as $con) {
+            $transformedDebate['children'][] = $this->transformDebateForSunburst($con);
+        }
+
+        return $transformedDebate;
+    }
+
+    
     /** CLASS TO GET ALL SOURCE LINK WITHING DEBATE HIERARCHY **/
 
     public function getSources($rootId)

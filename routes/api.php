@@ -67,6 +67,8 @@ Route::post('/debates/{parentId}/addConsChildDebate', [DebateController::class, 
 Route::post('/debates/{debateId}/share-link', [DebateController::class, 'shareDebateLink']); // share debate Link
 Route::get('/debates/join/{link}', [DebateController::class, 'joinDebateViaLink']); // Join debate via link
 
+Route::get('getdebatebyid/{id}/sunburstchart', [DebateController::class, 'getDebateForSunburstChart']); // display sunburst chart data
+
 
 // Admin APIs
 Route::get('/admin/all-users', [AdminController::class, 'getAllUsers']); // get list of all users
