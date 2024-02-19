@@ -799,7 +799,11 @@ class DebateController extends Controller
         Storage::put($fileName, $content);
 
         // Download the file
-        return Storage::download($fileName);
+        $filePath = storage_path("app/{$fileName}");
+        $headers = ['Content-Type: text/plain'];
+
+        // Delete the file immediately after download
+        return response()->download($filePath, $fileName, $headers)->deleteFileAfterSend(true);
     }
 
 

@@ -8,6 +8,7 @@ use App\Http\Controllers\VerificationController;
 use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\TeamController;
 
 /*
 |--------------------------------------------------------------------------
@@ -65,7 +66,6 @@ Route::post('/debates/{parentId}/addConsChildDebate', [DebateController::class, 
 
 Route::post('/debates/{debateId}/share-link', [DebateController::class, 'shareDebateLink']); // share debate Link
 Route::get('/debates/join/{link}', [DebateController::class, 'joinDebateViaLink']); // Join debate via link
-Route::post('/debates/{debateId}/invite', 'DebateController@inviteUser')->middleware('auth:sanctum');
 
 
 // Admin APIs
@@ -81,6 +81,13 @@ Route::delete('/admin/delete-debate/{id}', [AdminController::class, 'deleteDebat
 Route::get('/admin/all-stats', [AdminController::class, 'getAllStats']); // get all stats 
 Route::post('/admin/add-tag', [AdminController::class, 'addTag']); // add tag by admins
 
+
+// TEAM RELATED APIS
+Route::post('/teams/create-team', [TeamController::class, 'createTeam']);
+Route::post('/teams/{teamId}/update-team', [TeamController::class, 'updateTeam']);
+Route::delete('/teams/{teamId}/delete-team', [TeamController::class, 'deleteTeam']);
+Route::get('/teams/{teamId}/display-team', [TeamController::class, 'showTeamById']);
+Route::get('/teams/all-teams', [TeamController::class, 'indexAllTeams']);
 
 // ADDITIONAL APIs FOR HOME PAGE AND STATIC PAGES
 Route::get('/top-contributors', [DebateController::class, 'topContributors']); // Get list of top contributors in home page
