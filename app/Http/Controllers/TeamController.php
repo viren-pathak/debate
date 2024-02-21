@@ -6,9 +6,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str; 
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
 use App\Models\Debate;
 use App\Models\User;
 use App\Models\Team;
+use App\Models\Teammember;
 
 class TeamController extends Controller
 {
@@ -37,6 +39,14 @@ class TeamController extends Controller
             'name' => $request->name,
             'team_handle' => $teamHandle,
             'team_creator_id' => $user->id, // Assign the current user id as the team creator
+        ]);
+
+        // Assign the creator as owner in team_members table
+        TeamMember::create([
+            'team_id' => $team->id,
+            'user_id' => $user->id,
+            'username' => $user->username,
+            'role' => 'owner',
         ]);
 
         return response()->json([
@@ -221,4 +231,154 @@ class TeamController extends Controller
             'teams' => $teams,
         ], 200);
     }
+
+
+
+    /*** FUNCTION TO INVITE USER TO TEAM ***/
+    public function inviteUser(Request $request, $teamId)
+    {
+        $user = auth('sanctum')->user();
+
+        // return if user not registered in site
+        if (!$user) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'You are not authorized'
+            ], 401);
+        }
+
+        // Find the team
+        $team = Team::find($teamId);
+        
+        if (!$team) {
+            return response()->json([
+                'status' => 404,
+                'message' => "No Team Found!"
+            ], 404);
+        }
+
+        // Check if the user is a member of the team and has the role of owner
+        $isOwner = TeamMember::where('team_id', $teamId)
+                            ->where('user_id', $user->id)
+                            ->where('role', 'owner')
+                            ->exists();
+
+        if (!$isOwner) {
+            return response()->json([
+                'status' => 403,
+                'message' => "You do not have permission to invite users to this team."
+            ], 403);
+        }
+
+        // Validate request
+        $request->validate([
+            'username_or_email' => 'required|string',
+        ]);
+
+        // Find the user by username or email
+        $invitedUser = User::where('username', $request->username_or_email)
+                            ->orWhere('email', $request->username_or_email)
+                            ->first();
+
+        if (!$invitedUser) {
+            return response()->json([
+                'status' => 404,
+                'message' => "User not found."
+            ], 404);
+        }
+
+        // Check if the user is already a member of the team
+        $existingMember = TeamMember::where('team_id', $teamId)
+                                    ->where('user_id', $invitedUser->id)
+                                    ->exists();
+
+        if ($existingMember) {
+            return response()->json([
+                'status' => 400,
+                'message' => "User is already a member of the team."
+            ], 400);
+        }
+
+        // Add the user to the team as a member and store the username
+        TeamMember::create([
+            'team_id' => $teamId,
+            'user_id' => $invitedUser->id,
+            'username' => $invitedUser->username, // Store the username
+            'role' => 'member',
+        ]);
+
+        return response()->json([
+            'status' => 200,
+            'message' => 'User invited to the team successfully!',
+        ], 200);
+    }
+
+
+
+    /*** FUNCTION TO MANAGE TEAM MEMBER ***/
+
+    public function manageTeamMember(Request $request, $teamId, $userId)
+    {
+        $user = auth('sanctum')->user();
+
+        // return if user not registered in site
+        if (!$user) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'You are not authorized'
+            ], 401);
+        }
+
+        // Find the team
+        $team = Team::find($teamId);
+        if (!$team) {
+            return response()->json([
+                'status' => 404,
+                'message' => "No Team Found!"
+            ], 404);
+        }
+
+        // Check if the user is a member of the team and has the role of owner
+        $isOwner = TeamMember::where('team_id', $teamId)
+                            ->where('user_id', $user->id)
+                            ->where('role', 'owner')
+                            ->exists();
+
+        if (!$isOwner) {
+            return response()->json([
+                'status' => 403,
+                'message' => "You do not have permission to manage team members."
+            ], 403);
+        }
+
+        $request->validate([
+            'role' => ($request->action === 'change_role') ? 'required|in:owner,admin,member' : '',
+            'action' => 'required|in:change_role,remove_member',
+        ]);
+
+        // Find the team member
+        $teamMember = TeamMember::where('team_id', $teamId)
+                                ->where('user_id', $userId)
+                                ->first();
+
+        if (!$teamMember) {
+            return response()->json([
+                'status' => 404,
+                'message' => "User is not a member of the team."
+            ], 404);
+        }
+
+        // Perform the action based on the request
+        if ($request->action === 'change_role') {
+            $teamMember->update(['role' => $request->role]);
+        } elseif ($request->action === 'remove_member') {
+            $teamMember->delete();
+        }
+
+        return response()->json([
+            'status' => 200,
+            'message' => 'Team member updated successfully!',
+        ], 200);
+    }
+
 }

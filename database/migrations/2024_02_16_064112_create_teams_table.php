@@ -29,6 +29,14 @@ return new class extends Migration
      */
     public function down(): void
     {
+        // Disable foreign key checks
+        Schema::disableForeignKeyConstraints();
+    
+        // Drop the teams table
         Schema::dropIfExists('teams');
+    
+        // Re-enable foreign key checks
+        Schema::enableForeignKeyConstraints();
     }
+    
 };

@@ -90,6 +90,9 @@ Route::post('/teams/{teamId}/update-team', [TeamController::class, 'updateTeam']
 Route::delete('/teams/{teamId}/delete-team', [TeamController::class, 'deleteTeam']);
 Route::get('/teams/{teamId}/display-team', [TeamController::class, 'showTeamById']);
 Route::get('/teams/all-teams', [TeamController::class, 'indexAllTeams']);
+Route::post('/teams/{teamId}/invite-user', [TeamController::class, 'inviteUser']);
+Route::put('/teams/{teamId}/members/{userId}', [TeamController::class, 'manageTeamMember']);
+
 
 // ADDITIONAL APIs FOR HOME PAGE AND STATIC PAGES
 Route::get('/top-contributors', [DebateController::class, 'topContributors']); // Get list of top contributors in home page
