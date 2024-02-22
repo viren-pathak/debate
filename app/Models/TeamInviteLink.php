@@ -12,6 +12,7 @@ class TeamInviteLink extends Model
     protected $fillable = [
         'team_id', 
         'link', 
+        'role',
         'invite_message',
         'invited_by'
     ];

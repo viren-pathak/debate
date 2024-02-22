@@ -7,6 +7,7 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
+use App\Notifications\TeamInvitationNotification;
 use App\Models\Debate;
 use App\Models\User;
 use App\Models\Team;
@@ -259,12 +260,7 @@ class TeamController extends Controller
         }
 
         // Check if the user is a member of the team and has the role of owner
-        $isOwner = TeamMember::where('team_id', $teamId)
-                            ->where('user_id', $user->id)
-                            ->where('role', 'owner')
-                            ->exists();
-
-        if (!$isOwner) {
+        if (!$this->isTeamAdminOrOwner($user->id, $teamId)) {
             return response()->json([
                 'status' => 403,
                 'message' => "You do not have permission to invite users to this team."
@@ -274,6 +270,8 @@ class TeamController extends Controller
         // Validate request
         $request->validate([
             'username_or_email' => 'required|string',
+            'role' => 'required|string|in:admin,member',
+            'invite_message' => 'nullable|string',
         ]);
 
         // Find the user by username or email
@@ -300,13 +298,20 @@ class TeamController extends Controller
             ], 400);
         }
 
-        // Add the user to the team as a member and store the username
-        TeamMember::create([
+        // Generate a unique link for the invitation
+        $teamInviteLink = Str::random(32);
+
+        // Store the invite link in the database
+        TeamInviteLink::create([
             'team_id' => $teamId,
-            'user_id' => $invitedUser->id,
-            'username' => $invitedUser->username, // Store the username
-            'role' => 'member',
+            'link' => $teamInviteLink,
+            'invite_message' => $request->invite_message,
+            'invited_by' => $user->id,
+            'role' => $request->role,
         ]);
+
+        // Send email invitation
+        $invitedUser->notify(new TeamInvitationNotification(url("/teams/$teamId/join?teamInviteLink=$teamInviteLink"), $request->role));
 
         return response()->json([
             'status' => 200,
@@ -426,26 +431,27 @@ class TeamController extends Controller
         }
 
         // Generate a unique link
-        $link = Str::random(32);
+        $teamInviteLink = Str::random(32);
 
         // Store the invite link in the database
         TeamInviteLink::create([
             'team_id' => $teamId,
-            'link' => $link,
+            'link' => $teamInviteLink,
+            'role' => 'member',
             'invited_by' => $user->id,
         ]);
 
         return response()->json([
             'status' => 200,
             'message' => 'Invite link created successfully!',
-            'invite_link' => url("/teams/$teamId/join?link=$link"), // Provide the link to the user
+            'invite_link' => url("/teams/$teamId/join?teamInviteLink=$teamInviteLink"), // Provide the link to the user
         ], 200);
     }
 
 
     /*** FUNCTION TO JOIN TEAM VIA INVITE LINK ***/
 
-    public function joinTeamViaLink(Request $request, $teamId, $link)
+    public function joinTeamViaLink(Request $request, $teamId, $teamInviteLink)
     {
         $user = auth('sanctum')->user();
 
@@ -468,7 +474,7 @@ class TeamController extends Controller
 
         // Find the invite link
         $inviteLink = TeamInviteLink::where('team_id', $teamId)
-            ->where('link', $link)
+            ->where('link', $teamInviteLink)
             ->first();
 
         if (!$inviteLink) {
@@ -495,7 +501,7 @@ class TeamController extends Controller
             'team_id' => $teamId,
             'user_id' => $user->id,
             'username' => $user->username, // Store the username
-            'role' => 'member',
+            'role' => $inviteLink->role,
         ]);
 
         // Delete the invite link

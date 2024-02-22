@@ -12,6 +12,7 @@ class CreateTeamInviteLinksTable extends Migration
             $table->id();
             $table->foreignId('team_id')->constrained()->onDelete('cascade');
             $table->string('link')->unique();
+            $table->enum('role', ['admin', 'member']);
             $table->string('invite_message')->nullable();
             $table->foreignId('invited_by')->constrained('users')->onDelete('cascade');
             $table->timestamps();

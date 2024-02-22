@@ -93,7 +93,7 @@ Route::get('/teams/all-teams', [TeamController::class, 'indexAllTeams']);
 Route::post('/teams/{teamId}/invite-user', [TeamController::class, 'inviteUser']);
 Route::put('/teams/{teamId}/members/{userId}', [TeamController::class, 'manageTeamMember']);
 Route::post('/teams/{teamId}/invite-link', [TeamController::class, 'createTeamInviteLink']);
-Route::get('/teams/{teamId}/join/{link}', [TeamController::class, 'joinTeamViaLink']);
+Route::get('/teams/{teamId}/join/{teamInviteLink}', [TeamController::class, 'joinTeamViaLink']);
 
 
 // ADDITIONAL APIs FOR HOME PAGE AND STATIC PAGES
