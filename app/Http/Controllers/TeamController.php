@@ -10,7 +10,8 @@ use Illuminate\Support\Facades\DB;
 use App\Models\Debate;
 use App\Models\User;
 use App\Models\Team;
-use App\Models\Teammember;
+use App\Models\TeamMember;
+use App\Models\TeamInviteLink;
 
 class TeamController extends Controller
 {
@@ -380,5 +381,131 @@ class TeamController extends Controller
             'message' => 'Team member updated successfully!',
         ], 200);
     }
+
+
+    // Helper function to check if the user is an admin or owner of the team
+    private function isTeamAdminOrOwner($userId, $teamId)
+    {
+        return TeamMember::where('user_id', $userId)
+            ->where('team_id', $teamId)
+            ->whereIn('role', ['admin', 'owner'])
+            ->exists();
+    }
+
+
+    /*** FUNCTION TO CREATE INVITE LINK FOR TEAM ***/
+
+    public function createTeamInviteLink(Request $request, $teamId)
+    {
+        $user = auth('sanctum')->user(); // Retrieve the authenticated user
+
+        // Return if user not registered
+        if (!$user) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'You are not authorized'
+            ], 401);
+        }
+
+        // Find the team
+        $team = Team::find($teamId);
+
+        if (!$team) {
+            return response()->json([
+                'status' => 404,
+                'message' => "No Team Found!"
+            ], 404);
+        }
+
+        // Check if the user is an admin or owner of the team
+        if (!$this->isTeamAdminOrOwner($user->id, $teamId)) {
+            return response()->json([
+                'status' => 403,
+                'message' => "You do not have permission to create invite links for this team."
+            ], 403);
+        }
+
+        // Generate a unique link
+        $link = Str::random(32);
+
+        // Store the invite link in the database
+        TeamInviteLink::create([
+            'team_id' => $teamId,
+            'link' => $link,
+            'invited_by' => $user->id,
+        ]);
+
+        return response()->json([
+            'status' => 200,
+            'message' => 'Invite link created successfully!',
+            'invite_link' => url("/teams/$teamId/join?link=$link"), // Provide the link to the user
+        ], 200);
+    }
+
+
+    /*** FUNCTION TO JOIN TEAM VIA INVITE LINK ***/
+
+    public function joinTeamViaLink(Request $request, $teamId, $link)
+    {
+        $user = auth('sanctum')->user();
+
+        // Return if user not registered
+        if (!$user) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'You are not authorized'
+            ], 401);
+        }
+
+        // Find the team
+        $team = Team::find($teamId);
+        if (!$team) {
+            return response()->json([
+                'status' => 404,
+                'message' => "No Team Found!"
+            ], 404);
+        }
+
+        // Find the invite link
+        $inviteLink = TeamInviteLink::where('team_id', $teamId)
+            ->where('link', $link)
+            ->first();
+
+        if (!$inviteLink) {
+            return response()->json([
+                'status' => 404,
+                'message' => "Invalid or expired invite link."
+            ], 404);
+        }
+
+        // Check if the user is already a member of the team
+        $existingMember = TeamMember::where('team_id', $teamId)
+            ->where('user_id', $user->id)
+            ->exists();
+
+        if ($existingMember) {
+            return response()->json([
+                'status' => 400,
+                'message' => "You are already a member of this team."
+            ], 400);
+        }
+
+        // Add the user to the team as a member
+        TeamMember::create([
+            'team_id' => $teamId,
+            'user_id' => $user->id,
+            'username' => $user->username, // Store the username
+            'role' => 'member',
+        ]);
+
+        // Delete the invite link
+        $inviteLink->delete();
+
+        return response()->json([
+            'status' => 200,
+            'message' => 'You have successfully joined the team!',
+        ], 200);
+    }
+
 
 }
