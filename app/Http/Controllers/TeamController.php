@@ -20,6 +20,7 @@ class TeamController extends Controller
     /*** FUNCTION TO CREATE A NEW TEAM ***/
     public function createTeam(Request $request)
     {
+        // Retrieve the authenticated user
         $user = auth('sanctum')->user();
 
         // return if user not registered in site
@@ -30,6 +31,7 @@ class TeamController extends Controller
             ], 401);
         }
 
+        //validate the request into input
         $request->validate([
             'name' => 'required|string|max:255',
         ]);
@@ -37,6 +39,7 @@ class TeamController extends Controller
         // Generate a URL-friendly team handle
         $teamHandle = Str::slug($request->name);
 
+        // create team and store data in teams table
         $team = Team::create([
             'name' => $request->name,
             'team_handle' => $teamHandle,
@@ -51,6 +54,7 @@ class TeamController extends Controller
             'role' => 'owner',
         ]);
 
+        // response after succesful team creation
         return response()->json([
             'status' => 201,
             'message' => 'Team created successfully!',
@@ -63,6 +67,7 @@ class TeamController extends Controller
     /*** FUNCTION TO UPDATE TEAM DETAILS ***/
     public function updateTeam(Request $request, $teamId)
     {
+        // Retrieve the authenticated user
         $user = auth('sanctum')->user();
     
         // return if user not registered in site
@@ -73,8 +78,10 @@ class TeamController extends Controller
             ], 401);
         }
     
+        // find team with requested teamId
         $team = Team::find($teamId);
     
+        // return if no team found
         if (!$team) {
             return response()->json([
                 'status' => 404,
@@ -82,6 +89,7 @@ class TeamController extends Controller
             ], 404);
         }
     
+        // check if team creator is requesting 
         if ($user->id !== $team->team_creator_id) {
             return response()->json([
                 'status' => 403,
@@ -89,6 +97,7 @@ class TeamController extends Controller
             ], 403);
         }
     
+        // validate input request
         $request->validate([
             'name' => 'string|max:255',
             'description' => 'nullable|string',
@@ -104,6 +113,7 @@ class TeamController extends Controller
             'adminOnlyInvite' => 'boolean',
         ]);
     
+        // update the data as per input
         $updateData = [];
     
         if ($request->filled('name')) {
@@ -150,6 +160,7 @@ class TeamController extends Controller
     /*** FUNCTION TO DELETE TEAM ***/
     public function deleteTeam($teamId)
     {
+        // Retrieve the authenticated user
         $user = auth('sanctum')->user();
 
         // return if user not registered in site
@@ -160,8 +171,10 @@ class TeamController extends Controller
             ], 401);
         }
 
+        // find team with requested teamId
         $team = Team::find($teamId);
     
+        // return if no team found with requested teamId
         if (!$team) {
             return response()->json([
                 'status' => 404,
@@ -169,6 +182,7 @@ class TeamController extends Controller
             ], 404);
         }
 
+        // find that requesting user is owner or not
         if ($user->id !== $team->team_creator_id ) {
             return response()->json([
                 'status' => 403,
@@ -182,8 +196,10 @@ class TeamController extends Controller
             Storage::disk('public')->delete($team->team_picture);
         }
 
+        // delete team 
         $team->delete();
 
+        // response after succesful team deletion
         return response()->json([
             'status' => 200,
             'message' => 'Team deleted successfully!',
@@ -195,9 +211,10 @@ class TeamController extends Controller
     /*** FUNCTION TO GET DETAILS OF SPECIFIC TEAM ***/
     public function showTeamById($teamId)
     {
+        // find team with requested teamId
         $team = Team::find($teamId);
     
-        // return if not debate found with requested ID
+        // return if no team found with requested ID
         if (!$team) {
             return response()->json([
                 'status' => 404,
@@ -205,6 +222,7 @@ class TeamController extends Controller
             ], 404);
         }
 
+        // return team details of requested Id
         return response()->json([
             'status' => 200,
             'team' => $team,
@@ -216,6 +234,7 @@ class TeamController extends Controller
     /*** FUNCTION TO DISPLAY ALL TEAMS OF USER SPECIFIC ***/
     public function indexAllTeams()
     {
+        // Retrieve the authenticated user
         $user = auth('sanctum')->user();
 
         // return if user not registered in site
@@ -226,8 +245,10 @@ class TeamController extends Controller
             ], 401);
         }
 
+        // find all team of user
         $teams = Team::where('team_creator_id', $user->id)->get();
 
+        // return all teams of user
         return response()->json([
             'status' => 200,
             'teams' => $teams,
