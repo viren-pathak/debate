@@ -365,47 +365,142 @@ class TeamController extends Controller
             ], 404);
         }
 
-        // Check if the user is a member of the team and has the role of owner
-        $isOwner = TeamMember::where('team_id', $teamId)
-                            ->where('user_id', $user->id)
-                            ->where('role', 'owner')
-                            ->exists();
+        // Find the role of the requesting user
+        $requestingUserRole = TeamMember::where('team_id', $teamId)
+                                        ->where('user_id', $user->id)
+                                        ->value('role');
 
-        if (!$isOwner) {
-            return response()->json([
-                'status' => 403,
-                'message' => "You do not have permission to manage team members."
-            ], 403);
-        }
-
-        $request->validate([
-            'role' => ($request->action === 'change_role') ? 'required|in:owner,admin,member' : '',
-            'action' => 'required|in:change_role,remove_member',
-        ]);
-
-        // Find the team member
-        $teamMember = TeamMember::where('team_id', $teamId)
-                                ->where('user_id', $userId)
-                                ->first();
-
-        if (!$teamMember) {
+        // Find that requesting user is in team or not
+        if (!$requestingUserRole) {
             return response()->json([
                 'status' => 404,
-                'message' => "User is not a member of the team."
+                'message' => "You are not a member of the team."
             ], 404);
         }
 
-        // Perform the action based on the request
-        if ($request->action === 'change_role') {
-            $teamMember->update(['role' => $request->role]);
-        } elseif ($request->action === 'remove_member') {
-            $teamMember->delete();
+        // Find the role of the target user
+        $targetUserRole = TeamMember::where('team_id', $teamId)
+                                    ->where('user_id', $userId)
+                                    ->value('role');
+
+        // Find the team member
+        if (!$targetUserRole) {
+            return response()->json([
+                'status' => 404,
+                'message' => "Target User is not a member of the team."
+            ], 404);
         }
 
-        return response()->json([
-            'status' => 200,
-            'message' => 'Team member updated successfully!',
-        ], 200);
+
+        // Determine permissions based on the requesting user's role
+        switch ($requestingUserRole) {
+            case 'owner':
+                // Owner can change role of admin and member
+                if ($request->action === 'change_role' && $targetUserRole !== 'owner') {
+                    // Perform the action to change role
+                    $request->validate([
+                        'role' => 'required|in:admin,member'
+                    ]);
+                    $teamMember = TeamMember::where('team_id', $teamId)
+                                            ->where('user_id', $userId)
+                                            ->first();
+                    $teamMember->update(['role' => $request->role]);
+
+                    return response()->json([
+                        'status' => 200,
+                        'message' => 'Team member updated successfully!',
+                    ], 200);
+
+                } elseif ($request->action === 'remove_member') {
+                    // Owner can remove admin and member (except themselves)
+                    if ($userId == $user->id) {
+                        return response()->json([
+                            'status' => 403,
+                            'message' => "You cannot remove yourself as the owner."
+                        ], 403);
+                    }
+
+                    TeamMember::where('team_id', $teamId)
+                            ->where('user_id', $userId)
+                            ->delete();
+
+                    return response()->json([
+                        'status' => 200,
+                        'message' => 'User Removed successfully from team!',
+                    ], 200);
+
+                } else {
+                    // Unauthorized action
+                    return response()->json([
+                        'status' => 403,
+                        'message' => "You do not have permission to perform this action."
+                    ], 403);
+                }
+                break;
+            case 'admin':
+                // Admin can change role of member
+                if ($request->action === 'change_role' && $targetUserRole === 'member') {
+                    // Perform the action to change role
+                    $request->validate([
+                        'role' => 'required|in:admin,member'
+                    ]);
+
+                    $teamMember = TeamMember::where('team_id', $teamId)
+                                            ->where('user_id', $userId)
+                                            ->first();
+
+                    $teamMember->update(['role' => $request->role]);
+
+                    return response()->json([
+                        'status' => 200,
+                        'message' => 'Team member updated successfully!',
+                    ], 200);
+
+                } elseif ($request->action === 'remove_member') {
+                    // Admin can remove themselves or member
+                    if ($userId == $user->id || $targetUserRole === 'member') {
+                        TeamMember::where('team_id', $teamId)
+                                ->where('user_id', $userId)
+                                ->delete();
+
+                        return response()->json([
+                            'status' => 200,
+                            'message' => 'User Removed successfully from team!',
+                        ], 200);
+                    } else {
+                        return response()->json([
+                            'status' => 403,
+                            'message' => "You do not have permission to perform this action."
+                        ], 403);
+                    }
+                } else {
+                    // Unauthorized action
+                    return response()->json([
+                        'status' => 403,
+                        'message' => "You do not have permission to perform this action."
+                    ], 403);
+                }
+                break;
+            case 'member':
+
+                if ($request->action === 'remove_member' && $userId == $user->id) {
+                    TeamMember::where('team_id', $teamId)
+                            ->where('user_id', $userId)
+                            ->delete();
+                        
+                    return response()->json([
+                        'status' => 200,
+                        'message' => 'You successfully left the team!',
+                    ], 200);    
+                } else {
+                    return response()->json([
+                        'status' => 403,
+                        'message' => "You do not have permission to manage team members."
+                    ], 403);
+                }
+                break;
+        }
+
     }
 
 
