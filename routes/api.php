@@ -54,6 +54,7 @@ Route::get('/debates/{debateId}/votes-perspective', [DebateController::class, 'v
 
 
 Route::post('/debates/{debateId}/vote', [DebateController::class, 'vote']); // Add vote into debate
+Route::delete('/debates/{debateId}/remove-vote', [DebateController::class, 'removeVote']); // remove vote from debate
 Route::get('/debates/{debateId}/vote-counts', [DebateController::class, 'getVoteCounts']); // get vote list
 
 Route::get('/debates/{debateId}/commentsList', [DebateController::class, 'getComments']); // Get Comments List

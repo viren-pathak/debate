@@ -12,7 +12,7 @@ use App\Models\DebateRole;
 use App\Models\Review;
 use App\Models\ReviewHistory;
 use App\Models\DebateEditHistory;
-use App\Models\SourceinDebate;
+use App\Models\SourceInDebate;
 use App\Models\SharedLink;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
@@ -89,7 +89,7 @@ class DebateController extends Controller
 
 
         // create debate and store data in database
-        $storevar = debate::create([
+        $storevar = Debate::create([
             'user_id' => $user->id,
             'title' => $request->title,
             'thesis' => $request->thesis,
@@ -1672,7 +1672,7 @@ class DebateController extends Controller
         $validator = Validator::make($request->all(), [
             'vote' => 'required|integer|between:1,5',
         ]);
-
+    
         // response after validation fails
         if ($validator->fails()) {
             return response()->json([
@@ -1680,9 +1680,9 @@ class DebateController extends Controller
                 'errors' => $validator->messages()
             ], 422);
         }
-
+    
         $user = auth('sanctum')->user(); // Retrieve the authenticated user
-
+    
         // return if user is not authorized
         if (!$user) {
             return response()->json([
@@ -1693,7 +1693,7 @@ class DebateController extends Controller
         
         // find debate by requested ID
         $debate = Debate::find($debateId);
-
+    
         // Response if debate not found with requested ID
         if (!$debate) {
             return response()->json([
@@ -1701,7 +1701,7 @@ class DebateController extends Controller
                 'message' => "Debate not found!"
             ], 404);
         }
-
+    
         // check if voting allowed or not on root debate
         if (!$debate->voting_allowed) {
             return response()->json([
@@ -1709,34 +1709,117 @@ class DebateController extends Controller
                 'message' => "Voting is not allowed for this debate."
             ], 403);
         }
+    
+        // Check if the user has already voted on this debate
+        $existingVote = Vote::where('user_id', $user->id)
+                            ->where('debate_id', $debateId)
+                            ->first();
+    
+        if ($existingVote) {
+            // Update existing vote
+            $existingVote->update(['vote' => $request->vote]);
 
-        // add vote in debate
-        $vote = new Vote([
-            'user_id' => $user->id,
-            'vote' => $request->vote,
-        ]);
+            // Response after successful vote update
+            return response()->json([
+                'status' => 200,
+                'message' => 'Vote updated successfully',
+            ], 200);
+        } else {
+            // Add vote in debate
+            $vote = new Vote([
+                'user_id' => $user->id,
+                'debate_id' => $debateId,
+                'vote' => $request->vote,
+            ]);
+    
+            // Determine the root_id for the child debate
+            $rootId = $debate->root_id ?? $debateId;
+    
+            // Assign the role to the user
+            $this->assignRole($user->id, $rootId, 'suggester');
+    
+            // Save vote in debate
+            $debate->votes()->save($vote);
+    
+            // Increment total_votes column
+            $debate->increment('total_votes');
 
-        // Determine the root_id for the child debate
-        $rootId = $debate->root_id ?? $debateId;
-
-        // Assign the role to the user
-        $this->assignRole($user->id, $rootId, 'suggester');
-
-        // save vote in debate
-        $debate->votes()->save($vote);
-
-        // Increment total_votes column
-        $debate->increment('total_votes');
-
-        // Update user comments & contributions in users table
-        $user->total_votes += 1; // Increment total votes
-        $user->total_contributions += 1; // Increment total contributions
-        $user->save();
-
-        // response after successful voting
+            // Update user votes & contributions in users table
+            $user->total_votes += 1; // Increment total votes
+            $user->total_contributions += 1; // Increment total contributions
+            $user->save();
+        }
+    
+        // Response after successful voting
         return response()->json([
             'status' => 200,
             'message' => 'Vote recorded successfully',
+        ], 200);
+    }   
+
+
+    /*** CLASS TO REMOVE VOTE ***/
+
+    public function removeVote(Request $request, int $debateId)
+    {
+        // Retrieve the authenticated user
+        $user = auth('sanctum')->user();
+
+        // Return if user is not authenticated
+        if (!$user) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'Unauthorized Access'
+            ], 401);
+        }
+
+        // Find debate by the requested ID
+        $debate = Debate::find($debateId);
+
+        // Return if debate is not found with the requested ID
+        if (!$debate) {
+            return response()->json([
+                'status' => 404,
+                'message' => "Debate not found!"
+            ], 404);
+        }
+
+        // Check if voting is allowed for this debate
+        if (!$debate->voting_allowed) {
+            return response()->json([
+                'status' => 403,
+                'message' => "Voting is not allowed for this debate."
+            ], 403);
+        }
+
+        // Check if the user has voted for this debate
+        $existingVote = Vote::where('user_id', $user->id)
+                            ->where('debate_id', $debateId)
+                            ->first();
+
+        // If user hasn't voted for this debate, return an error response
+        if (!$existingVote) {
+            return response()->json([
+                'status' => 400,
+                'message' => "You haven't voted for this debate."
+            ], 400);
+        }
+
+        // Delete the user's vote from the database
+        $existingVote->delete();
+
+        // Decrement total_votes column in the debate table
+        $debate->decrement('total_votes');
+
+        // Decrement total_votes and total_contributions in the users table for the respective user
+        $user->total_votes -= 1;
+        $user->total_contributions -= 1;
+        $user->save();
+
+        // Return a success response
+        return response()->json([
+            'status' => 200,
+            'message' => 'Vote removed successfully',
         ], 200);
     }
 
