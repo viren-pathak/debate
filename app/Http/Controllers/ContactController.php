@@ -27,7 +27,9 @@ class ContactController extends Controller
     
             /** 
              * 
-             * CHANGE EMAIL ADDRESSS *
+             * CHANGE EMAIL ADDRESSS IN LIVE as 
+             * Mail::to('jmbliss83@gmail.com')->send(new ContactFormMail(
+             * for getting email at jmbliss83 because dont have env email access
              * 
              * 
              * 
