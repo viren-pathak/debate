@@ -14,6 +14,7 @@ use App\Models\ReviewHistory;
 use App\Models\DebateEditHistory;
 use App\Models\SourceInDebate;
 use App\Models\SharedLink;
+use App\Models\SuggestedDebate;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
@@ -1258,6 +1259,36 @@ class DebateController extends Controller
         // Determine the root_id for the child debate
         $rootId = $parentDebate->root_id ?? $parentId;
     
+        $role = $this->getUserRoleInDebate($user->id, $rootId);
+
+        // If the user is not an owner, editor, or writer, suggest the debate instead of adding it directly
+        if (!in_array($role, ['owner', 'editor', 'writer'])) {
+            // Assign the role to the user
+            $this->assignRole($user->id, $rootId, 'suggester');
+
+            $suggestedDebate = SuggestedDebate::create([
+                'user_id' => $user->id,
+                'root_id' => $rootId,
+                'parent_id' => $parentId,
+                'title' => $request->input('title'),
+                'side' => $side,
+                'voting_allowed' => $parentDebate->voting_allowed ?? false,
+            ]);
+
+            // Store embedded links if found in the title
+            $this->storeEmbeddedLinksForChild($rootId, $suggestedDebate->id, $request->title);
+    
+            // Return a response indicating the debate suggestion has been submitted
+            return response()->json([
+                'status' => 202,
+                'message' => 'Your debate suggestion has been submitted for review.',
+                'suggestedDebate' => $suggestedDebate,
+            ], 202);
+
+            // Assign the role to the user
+            $this->assignRole($user->id, $rootId, 'suggester');
+        }
+        
         // Add the child debate with the specified side
         $childDebate = Debate::create([
             'user_id' => $user->id,
@@ -1267,9 +1298,6 @@ class DebateController extends Controller
             'root_id' => $rootId,
             'voting_allowed' => $parentDebate->voting_allowed ?? false, // Inherit voting_allowed from parent debate
         ]);
-
-        // Assign the role to the user
-        $this->assignRole($user->id, $rootId, 'suggester');
     
         // Update user comments & contributions in users table
         $user->total_claims += 1; // Increment total claims
@@ -1319,6 +1347,100 @@ class DebateController extends Controller
     }
 
     
+    /*** CLASS TO MODERATE SUGGESTED CHILD DEBATES ***/
+
+    public function moderateSuggestedDebate(Request $request, int $suggestedDebateId)
+    {
+        // Retrieve the authenticated user
+        $user = auth('sanctum')->user();
+
+        // Return if user is not authenticated
+        if (!$user) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'Unauthorized Access'
+            ], 401);
+        }
+
+        // Find the suggested debate
+        $suggestedDebate = SuggestedDebate::find($suggestedDebateId);
+
+        // Return if suggested debate not found with requested ID
+        if (!$suggestedDebate) {
+            return response()->json([
+                'status' => 404,
+                'message' => 'Suggested Debate not found!'
+            ], 404);
+        }
+
+        $rootId = $suggestedDebate->parent->root_id ?? $suggestedDebate->parent_id;
+
+        // Check if the user is an owner or editor
+        if (!$this->isEditorOrCreator($user->id, $rootId)) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'You do not have permission to moderate suggested debates.'
+            ], 403);
+        }
+
+        // Accept or delete the suggested debate based on the request
+        if ($request->action === 'accept') {
+            // Add the suggested debate as a child debate
+            $childDebate = Debate::create([
+                'user_id' => $suggestedDebate->user_id,
+                'title' => $suggestedDebate->title,
+                'side' => $suggestedDebate->side,
+                'parent_id' => $suggestedDebate->parent_id,
+                'root_id' => $rootId,
+                'voting_allowed' => $suggestedDebate->voting_allowed,
+            ]);
+        
+            // Find the suggester user
+            $suggester = User::find($suggestedDebate->user_id);
+
+            // Update suggester's claims & contributions in users table
+            $suggester->total_claims += 1; // Increment total claims
+            $suggester->total_contributions += 1; // Increment total contributions
+
+            // Change suggester's role to writer
+            $this->assignRole($suggester->id, $rootId, 'writer', true); 
+
+            $suggester->save();
+
+            // Log the edit history
+            DebateEditHistory::create([
+                'root_id' => $rootId,
+                'debate_id' => $childDebate->id,
+                'create_user_id' => $suggester->id,
+                'last_title' => $childDebate->title, // Use the child debate's title
+            ]);
+
+            // Store embedded links if found in the title
+            $this->storeEmbeddedLinksForChild($rootId, $childDebate->id, $childDebate->title);
+
+            // Delete the suggested debate
+            $suggestedDebate->delete();
+
+            return response()->json([
+                'status' => 200,
+                'message' => 'Suggested debate accepted and added as child debate.'
+            ], 200);
+        } elseif ($request->action === 'delete') {
+            // Delete the suggested debate
+            $suggestedDebate->delete();
+
+            return response()->json([
+                'status' => 200,
+                'message' => 'Suggested debate deleted successfully.'
+            ], 200);
+        } else {
+            return response()->json([
+                'status' => 400,
+                'message' => 'Invalid action specified.'
+            ], 400);
+        }
+    }
+
     /*** CLASS TO MOVE CHILD DEBATE TO OTHER PARENT DEBATE ***/
         
     public function moveChildDebate(Request $request, int $childDebateId)
@@ -1956,6 +2078,16 @@ class DebateController extends Controller
         }
     }
 
+    /*** CLASS TO GET USERS ROLE IN DEBATE ***/
+
+    private function getUserRoleInDebate($userId, $rootId)
+    {
+        $role = DebateRole::where('user_id', $userId)
+                          ->where('root_id', $rootId)
+                          ->value('role');
+
+        return $role;
+    }
     
     /*** CLASS TO CHANGE USER ROLE IN DEBATE HIERRARCHY BY OWNER ONLY ***/
 
